@@ -1,0 +1,47 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: tools/docker/php/Dockerfile
+    working_dir: /app/backend
+    volumes:
+      - .:/app
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: postgresql://home_os:home_os_dev_password@database:5432/home_os?serverVersion=16&charset=utf8
+    ports:
+      - "8080:8000"
+    depends_on:
+      - database
+    command: symfony server:start --no-tls --listen-ip=0.0.0.0 --port=8000
+
+  frontend:
+    image: node:24-alpine
+    working_dir: /app/frontend
+    volumes:
+      - .:/app
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080/api
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: home_os
+      POSTGRES_USER: home_os
+      POSTGRES_PASSWORD: home_os_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+volumes:
+  postgres_data:
