@@ -19,5 +19,28 @@ services:
     App\:
         resource: '../src/'
 
+    _instanceof:
+        App\Shared\Application\Command\CommandHandler:
+            tags: ['app.command_handler']
+        App\Shared\Application\Query\QueryHandler:
+            tags: ['app.query_handler']
+
+    App\Household\Domain\Repository\HouseholdRepository:
+        alias: App\Household\Infrastructure\Persistence\DoctrineHouseholdRepository
+
+    App\Shared\Application\Command\CommandBus:
+        alias: App\Shared\Application\Command\SynchronousCommandBus
+
+    App\Shared\Application\Command\SynchronousCommandBus:
+        arguments:
+            $handlers: !tagged_iterator app.command_handler
+
+    App\Shared\Application\Query\QueryBus:
+        alias: App\Shared\Application\Query\SynchronousQueryBus
+
+    App\Shared\Application\Query\SynchronousQueryBus:
+        arguments:
+            $handlers: !tagged_iterator app.query_handler
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
