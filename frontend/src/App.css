@@ -209,6 +209,12 @@ h2 {
   gap: 12px;
 }
 
+.auth-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr);
+  gap: 18px;
+}
+
 .setup-form.inline {
   grid-template-columns: minmax(180px, 1fr) 140px auto;
   align-items: end;
@@ -253,6 +259,17 @@ h2 {
   color: #a63b34;
   font-size: 14px;
   font-weight: 750;
+}
+
+.text-button {
+  margin-top: 16px;
+  border: 0;
+  background: transparent;
+  color: #175c4a;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0;
+  text-align: left;
 }
 
 .member-workspace {
@@ -361,6 +378,10 @@ h2 {
   }
 
   .setup-form.inline {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-grid {
     grid-template-columns: 1fr;
   }
 }

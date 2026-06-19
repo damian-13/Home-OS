@@ -20,6 +20,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Household/Domain/Model'
                 prefix: 'App\Household\Domain\Model'
                 alias: Household
+            Identity:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Identity/Domain/Model'
+                prefix: 'App\Identity\Domain\Model'
+                alias: Identity
         controller_resolver:
             auto_mapping: false
 

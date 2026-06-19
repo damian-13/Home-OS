@@ -10,11 +10,7 @@ type Dashboard = {
     healthMarkersTracked: number
     documentsStored: number
   }
-  attention: Array<{
-    label: string
-    area: string
-    due: string
-  }>
+  attention: Array<{ label: string; area: string; due: string }>
 }
 
 type HouseholdMember = {
@@ -34,6 +30,14 @@ type Household = {
   members: HouseholdMember[]
 }
 
+type CurrentUser = {
+  id: string
+  email: string
+  displayName: string
+  householdId: string
+  linkedMemberId: string | null
+}
+
 const fallbackDashboard: Dashboard = {
   app: 'Home OS',
   status: 'offline',
@@ -50,6 +54,7 @@ const householdStorageKey = 'home-os.household-id'
 
 async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -67,8 +72,12 @@ async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
 function App() {
   const [dashboard, setDashboard] = useState<Dashboard>(fallbackDashboard)
   const [apiState, setApiState] = useState<'checking' | 'online' | 'offline'>('checking')
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [household, setHousehold] = useState<Household | null>(null)
   const [householdName, setHouseholdName] = useState('Home OS Household')
+  const [email, setEmail] = useState('damian@example.test')
+  const [password, setPassword] = useState('password123')
+  const [displayName, setDisplayName] = useState('Damian')
   const [memberName, setMemberName] = useState('')
   const [memberType, setMemberType] = useState<'adult' | 'child'>('adult')
   const [setupState, setSetupState] = useState<'idle' | 'saving' | 'error'>('idle')
@@ -92,36 +101,63 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const storedHouseholdId = window.localStorage.getItem(householdStorageKey)
+    apiJson<{ user: CurrentUser | null }>('/api/auth/me')
+      .then(({ user }) => {
+        setCurrentUser(user)
 
-    if (!storedHouseholdId) {
-      return
-    }
+        if (!user) {
+          return
+        }
 
-    apiJson<Household>(`/api/households/${storedHouseholdId}`)
-      .then(setHousehold)
-      .catch(() => window.localStorage.removeItem(householdStorageKey))
+        window.localStorage.setItem(householdStorageKey, user.householdId)
+        return apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold)
+      })
+      .catch(() => {
+        setCurrentUser(null)
+        window.localStorage.removeItem(householdStorageKey)
+      })
   }, [])
 
-  const createHousehold = async (event: FormEvent<HTMLFormElement>) => {
+  const register = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSetupState('saving')
 
     try {
-      const created = await apiJson<{ id: string }>('/api/households', {
+      await apiJson<{ id: string }>('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({
-          name: householdName,
-          defaultCurrency: 'PLN',
-        }),
+        body: JSON.stringify({ email, password, displayName, householdName }),
       })
-      const nextHousehold = await apiJson<Household>(`/api/households/${created.id}`)
-      window.localStorage.setItem(householdStorageKey, created.id)
+      await login()
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const login = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ message: string }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      })
+      const { user } = await apiJson<{ user: CurrentUser }>('/api/auth/me')
+      const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
+      window.localStorage.setItem(householdStorageKey, user.householdId)
+      setCurrentUser(user)
       setHousehold(nextHousehold)
       setSetupState('idle')
     } catch {
       setSetupState('error')
     }
+  }
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', { credentials: 'same-origin' }).catch(() => undefined)
+    setCurrentUser(null)
+    setHousehold(null)
+    window.localStorage.removeItem(householdStorageKey)
   }
 
   const addMember = async (event: FormEvent<HTMLFormElement>) => {
@@ -223,30 +259,67 @@ function App() {
 
         <section className="setup-panel" id="household">
           <div>
-            <p className="eyebrow">Household</p>
-            <h2>{household ? household.name : 'Create your household.'}</h2>
+            <p className="eyebrow">{currentUser ? 'Household' : 'Account'}</p>
+            <h2>{currentUser ? household?.name ?? 'Loading household...' : 'Create your Home OS account.'}</h2>
             <p className="panel-copy">
-              {household
+              {currentUser && household
                 ? `${household.defaultCurrency} is set as the household currency.`
-                : 'Start with the shared family space. Members can be adults now and children later.'}
+                : 'Register the first family account. It creates your household and links your member profile automatically.'}
             </p>
+            {currentUser && (
+              <button className="text-button" type="button" onClick={logout}>
+                Log out {currentUser.email}
+              </button>
+            )}
           </div>
 
-          {!household ? (
-            <form className="setup-form" onSubmit={createHousehold}>
-              <label>
-                Household name
-                <input
-                  value={householdName}
-                  onChange={(event) => setHouseholdName(event.target.value)}
-                  required
-                />
-              </label>
-              <button type="submit" disabled={setupState === 'saving'}>
-                Create household
-              </button>
-              {setupState === 'error' && <p className="form-error">Could not save household.</p>}
-            </form>
+          {!currentUser ? (
+            <div className="auth-grid">
+              <form className="setup-form" onSubmit={register}>
+                <label>
+                  Display name
+                  <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
+                </label>
+                <label>
+                  Email
+                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    minLength={8}
+                    required
+                  />
+                </label>
+                <label>
+                  Household name
+                  <input value={householdName} onChange={(event) => setHouseholdName(event.target.value)} required />
+                </label>
+                <button type="submit" disabled={setupState === 'saving'}>
+                  Register
+                </button>
+              </form>
+
+              <form className="setup-form" onSubmit={login}>
+                <label>
+                  Email
+                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                </label>
+                <label>
+                  Password
+                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                </label>
+                <button type="submit" disabled={setupState === 'saving'}>
+                  Log in
+                </button>
+              </form>
+              {setupState === 'error' && <p className="form-error">Could not authenticate.</p>}
+            </div>
+          ) : !household ? (
+            <div className="empty-state">Loading household...</div>
           ) : (
             <div className="member-workspace">
               <div className="member-list">
@@ -268,11 +341,7 @@ function App() {
               <form className="setup-form inline" onSubmit={addMember}>
                 <label>
                   Member name
-                  <input
-                    value={memberName}
-                    onChange={(event) => setMemberName(event.target.value)}
-                    required
-                  />
+                  <input value={memberName} onChange={(event) => setMemberName(event.target.value)} required />
                 </label>
                 <label>
                   Type

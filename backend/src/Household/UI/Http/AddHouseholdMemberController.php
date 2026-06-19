@@ -4,6 +4,7 @@ namespace App\Household\UI\Http;
 
 use App\Household\Application\Command\AddHouseholdMemberCommand;
 use App\Household\Domain\Model\HouseholdMember;
+use App\Identity\Application\Security\HouseholdAccess;
 use App\Shared\Application\Command\CommandBus;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -14,12 +15,15 @@ final readonly class AddHouseholdMemberController
 {
     public function __construct(
         private CommandBus $commandBus,
+        private HouseholdAccess $householdAccess,
     ) {
     }
 
     #[Route('/api/households/{householdId}/members', name: 'api_household_members_add', methods: ['POST'])]
     public function __invoke(string $householdId, Request $request): JsonResponse
     {
+        $this->householdAccess->assertCanAccess($householdId);
+
         $payload = $this->payload($request);
         $displayName = trim((string) ($payload['displayName'] ?? ''));
         $memberType = (string) ($payload['memberType'] ?? HouseholdMember::TYPE_ADULT);
