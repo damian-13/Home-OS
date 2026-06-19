@@ -39,6 +39,9 @@ class Expense
     #[ORM\Column(type: 'datetime_immutable')]
     private DateTimeImmutable $createdAt;
 
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?DateTimeImmutable $deletedAt = null;
+
     public function __construct(
         string $id,
         string $householdId,
@@ -58,6 +61,20 @@ class Expense
         $this->spentOn = $spentOn;
         $this->paidByMemberId = $paidByMemberId;
         $this->createdAt = new DateTimeImmutable();
+    }
+
+    public function changeDetails(ExpenseCategory $category, string $description, int $amountCents, DateTimeImmutable $spentOn, ?string $paidByMemberId): void
+    {
+        $this->category = $category;
+        $this->description = $description;
+        $this->amountCents = $amountCents;
+        $this->spentOn = $spentOn;
+        $this->paidByMemberId = $paidByMemberId;
+    }
+
+    public function delete(): void
+    {
+        $this->deletedAt ??= new DateTimeImmutable();
     }
 
     public function id(): string
@@ -98,5 +115,10 @@ class Expense
     public function paidByMemberId(): ?string
     {
         return $this->paidByMemberId;
+    }
+
+    public function deletedAt(): ?DateTimeImmutable
+    {
+        return $this->deletedAt;
     }
 }

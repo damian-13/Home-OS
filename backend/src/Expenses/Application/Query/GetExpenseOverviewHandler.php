@@ -28,12 +28,14 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
     public function __invoke(GetExpenseOverviewQuery $query): ExpenseOverviewView
     {
         $categories = $this->ensureDefaultCategories($query->householdId);
-        $now = new DateTimeImmutable();
-        $monthStart = $now->modify('first day of this month')->setTime(0, 0);
-        $monthEnd = $now->modify('last day of this month')->setTime(23, 59, 59);
-        $monthExpenses = $this->expenses->expensesBetween($query->householdId, $monthStart, $monthEnd);
-        $latestExpenses = $this->expenses->latestExpenses($query->householdId);
-        $recurringBills = $this->expenses->recurringBillsForHousehold($query->householdId);
+        $month = $this->normalizeMonth($query->month);
+        $monthStart = new DateTimeImmutable($month . '-01 00:00:00');
+        $monthEnd = $monthStart->modify('last day of this month')->setTime(23, 59, 59);
+        $categoryId = $query->categoryId ?: null;
+        $paidByMemberId = $query->paidByMemberId ?: null;
+        $monthExpenses = $this->expenses->expensesBetween($query->householdId, $monthStart, $monthEnd, $categoryId, $paidByMemberId);
+        $latestExpenses = $this->expenses->latestExpenses($query->householdId, $monthStart, $monthEnd, $categoryId, $paidByMemberId);
+        $recurringBills = $this->expenses->recurringBillsForHousehold($query->householdId, $categoryId, $paidByMemberId);
 
         $monthTotalCents = array_sum(array_map(static fn ($expense) => $expense->amountCents(), $monthExpenses));
         $recurringTotalCents = array_sum(array_map(static fn ($bill) => $bill->amountCents(), $recurringBills));
@@ -59,7 +61,21 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
             array_map(static fn ($expense) => ExpenseView::fromExpense($expense), $latestExpenses),
             array_map(static fn ($bill) => RecurringBillView::fromBill($bill), $recurringBills),
             array_values(array_filter($categoryTotals, static fn (array $total) => $total['amount'] > 0)),
+            [
+                'month' => $month,
+                'categoryId' => $categoryId,
+                'paidByMemberId' => $paidByMemberId,
+            ],
         );
+    }
+
+    private function normalizeMonth(?string $month): string
+    {
+        if ($month && 1 === preg_match('/^\d{4}-\d{2}$/', $month)) {
+            return $month;
+        }
+
+        return (new DateTimeImmutable())->format('Y-m');
     }
 
     /**

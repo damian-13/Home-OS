@@ -73,6 +73,11 @@ type ExpenseOverview = {
   latestExpenses: ExpenseItem[]
   recurringBills: RecurringBill[]
   byCategory: Array<{ name: string; color: string; amount: number }>
+  activeFilters: {
+    month: string
+    categoryId: string | null
+    paidByMemberId: string | null
+  }
 }
 
 type AppPage = 'dashboard' | 'household' | 'expenses' | 'health' | 'documents'
@@ -92,6 +97,7 @@ const fallbackDashboard: Dashboard = {
 const householdStorageKey = 'home-os.household-id'
 
 const today = new Date().toISOString().slice(0, 10)
+const currentMonth = today.slice(0, 7)
 
 async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -108,6 +114,21 @@ async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>
+}
+
+async function apiNoContent(url: string, options?: RequestInit): Promise<void> {
+  const response = await fetch(url, {
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+    ...options,
+  })
+
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status}`)
+  }
 }
 
 function App() {
@@ -136,6 +157,21 @@ function App() {
   const [billCategoryId, setBillCategoryId] = useState('')
   const [billPaidByMemberId, setBillPaidByMemberId] = useState('')
   const [billDueDay, setBillDueDay] = useState('10')
+  const [expenseFilterMonth, setExpenseFilterMonth] = useState(currentMonth)
+  const [expenseFilterCategoryId, setExpenseFilterCategoryId] = useState('')
+  const [expenseFilterPaidByMemberId, setExpenseFilterPaidByMemberId] = useState('')
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
+  const [editExpenseDescription, setEditExpenseDescription] = useState('')
+  const [editExpenseAmount, setEditExpenseAmount] = useState('')
+  const [editExpenseCategoryId, setEditExpenseCategoryId] = useState('')
+  const [editExpensePaidByMemberId, setEditExpensePaidByMemberId] = useState('')
+  const [editExpenseSpentOn, setEditExpenseSpentOn] = useState(today)
+  const [editingBillId, setEditingBillId] = useState<string | null>(null)
+  const [editBillName, setEditBillName] = useState('')
+  const [editBillAmount, setEditBillAmount] = useState('')
+  const [editBillCategoryId, setEditBillCategoryId] = useState('')
+  const [editBillPaidByMemberId, setEditBillPaidByMemberId] = useState('')
+  const [editBillDueDay, setEditBillDueDay] = useState('10')
 
   useEffect(() => {
     const readPageFromHash = () => {
@@ -240,7 +276,18 @@ function App() {
   }
 
   const loadExpenseOverview = async (householdId: string) => {
-    const overview = await apiJson<ExpenseOverview>(`/api/households/${householdId}/expenses/overview`)
+    const params = new URLSearchParams()
+    params.set('month', expenseFilterMonth)
+
+    if (expenseFilterCategoryId) {
+      params.set('categoryId', expenseFilterCategoryId)
+    }
+
+    if (expenseFilterPaidByMemberId) {
+      params.set('paidByMemberId', expenseFilterPaidByMemberId)
+    }
+
+    const overview = await apiJson<ExpenseOverview>(`/api/households/${householdId}/expenses/overview?${params.toString()}`)
     setExpenseOverview(overview)
 
     if (!expenseCategoryId && overview.categories[0]) {
@@ -251,6 +298,12 @@ function App() {
       setBillCategoryId(overview.categories[0].id)
     }
   }
+
+  useEffect(() => {
+    if (currentUser) {
+      loadExpenseOverview(currentUser.householdId).catch(() => setSetupState('error'))
+    }
+  }, [expenseFilterMonth, expenseFilterCategoryId, expenseFilterPaidByMemberId])
 
   const addMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -332,6 +385,114 @@ function App() {
       await loadExpenseOverview(household.id)
       setBillName('')
       setBillAmount('')
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const startEditExpense = (expense: ExpenseItem) => {
+    setEditingExpenseId(expense.id)
+    setEditExpenseDescription(expense.description)
+    setEditExpenseAmount(String(expense.amount))
+    setEditExpenseCategoryId(expense.category.id)
+    setEditExpensePaidByMemberId(expense.paidByMemberId ?? '')
+    setEditExpenseSpentOn(expense.spentOn)
+  }
+
+  const updateExpense = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !editingExpenseId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/${editingExpenseId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          categoryId: editExpenseCategoryId,
+          description: editExpenseDescription,
+          amount: Number(editExpenseAmount),
+          spentOn: editExpenseSpentOn,
+          paidByMemberId: editExpensePaidByMemberId || null,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setEditingExpenseId(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteExpense = async (expenseId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiNoContent(`/api/households/${household.id}/expenses/${expenseId}`, { method: 'DELETE' })
+      await loadExpenseOverview(household.id)
+      setEditingExpenseId((current) => (current === expenseId ? null : current))
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const startEditBill = (bill: RecurringBill) => {
+    setEditingBillId(bill.id)
+    setEditBillName(bill.name)
+    setEditBillAmount(String(bill.amount))
+    setEditBillCategoryId(bill.category.id)
+    setEditBillPaidByMemberId(bill.paidByMemberId ?? '')
+    setEditBillDueDay(String(bill.dueDay))
+  }
+
+  const updateRecurringBill = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !editingBillId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/recurring-bills/${editingBillId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          categoryId: editBillCategoryId,
+          name: editBillName,
+          amount: Number(editBillAmount),
+          dueDay: Number(editBillDueDay),
+          paidByMemberId: editBillPaidByMemberId || null,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setEditingBillId(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteRecurringBill = async (billId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiNoContent(`/api/households/${household.id}/expenses/recurring-bills/${billId}`, { method: 'DELETE' })
+      await loadExpenseOverview(household.id)
+      setEditingBillId((current) => (current === billId ? null : current))
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -697,6 +858,41 @@ function App() {
               </article>
             </div>
 
+            <section className="expense-filters" aria-label="Expense filters">
+              <label>
+                Month
+                <input type="month" value={expenseFilterMonth} onChange={(event) => setExpenseFilterMonth(event.target.value)} />
+              </label>
+              <label>
+                Category
+                <select value={expenseFilterCategoryId} onChange={(event) => setExpenseFilterCategoryId(event.target.value)}>
+                  <option value="">All categories</option>
+                  {(expenseOverview?.categories ?? []).map((category) => (
+                    <option value={category.id} key={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Paid by
+                <select value={expenseFilterPaidByMemberId} onChange={(event) => setExpenseFilterPaidByMemberId(event.target.value)}>
+                  <option value="">Everyone</option>
+                  {(household?.members ?? []).map((member) => (
+                    <option value={member.id} key={member.id}>{member.displayName}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseFilterMonth(currentMonth)
+                  setExpenseFilterCategoryId('')
+                  setExpenseFilterPaidByMemberId('')
+                }}
+              >
+                Reset
+              </button>
+            </section>
+
             <div className="expenses-workspace">
               <form className="setup-form expense-form" onSubmit={addExpense}>
                 <h3>Add expense</h3>
@@ -798,13 +994,63 @@ function App() {
                 <div className="money-list">
                   {(expenseOverview?.latestExpenses ?? []).length > 0 ? (
                     expenseOverview?.latestExpenses.map((expense) => (
-                      <article className="money-item" key={expense.id}>
+                      <article className="money-item editable" key={expense.id}>
                         <span style={{ background: expense.category.color }}></span>
-                        <div>
-                          <strong>{expense.description}</strong>
-                          <small>{expense.category.name} · {memberNameById(expense.paidByMemberId)} · {expense.spentOn}</small>
+                        <div className="money-item-main">
+                          <div>
+                            <strong>{expense.description}</strong>
+                            <small>{expense.category.name} · {memberNameById(expense.paidByMemberId)} · {expense.spentOn}</small>
+                          </div>
+                          <div className="row-actions">
+                            <button type="button" onClick={() => startEditExpense(expense)}>Edit</button>
+                            <button type="button" onClick={() => deleteExpense(expense.id)}>Delete</button>
+                          </div>
                         </div>
                         <b>{expense.amount.toLocaleString('pl-PL')} PLN</b>
+                        {editingExpenseId === expense.id && (
+                          <form className="inline-edit-form" onSubmit={updateExpense}>
+                            <label>
+                              Description
+                              <input value={editExpenseDescription} onChange={(event) => setEditExpenseDescription(event.target.value)} required />
+                            </label>
+                            <label>
+                              Amount PLN
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={editExpenseAmount}
+                                onChange={(event) => setEditExpenseAmount(event.target.value)}
+                                required
+                              />
+                            </label>
+                            <label>
+                              Category
+                              <select value={editExpenseCategoryId} onChange={(event) => setEditExpenseCategoryId(event.target.value)} required>
+                                {(expenseOverview?.categories ?? []).map((category) => (
+                                  <option value={category.id} key={category.id}>{category.name}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Paid by
+                              <select value={editExpensePaidByMemberId} onChange={(event) => setEditExpensePaidByMemberId(event.target.value)}>
+                                <option value="">Household</option>
+                                {(household?.members ?? []).map((member) => (
+                                  <option value={member.id} key={member.id}>{member.displayName}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Date
+                              <input type="date" value={editExpenseSpentOn} onChange={(event) => setEditExpenseSpentOn(event.target.value)} required />
+                            </label>
+                            <div className="inline-edit-actions">
+                              <button type="submit" disabled={setupState === 'saving'}>Save</button>
+                              <button type="button" onClick={() => setEditingExpenseId(null)}>Cancel</button>
+                            </div>
+                          </form>
+                        )}
                       </article>
                     ))
                   ) : (
@@ -818,13 +1064,70 @@ function App() {
                 <div className="money-list">
                   {(expenseOverview?.recurringBills ?? []).length > 0 ? (
                     expenseOverview?.recurringBills.map((bill) => (
-                      <article className="money-item" key={bill.id}>
+                      <article className="money-item editable" key={bill.id}>
                         <span style={{ background: bill.category.color }}></span>
-                        <div>
-                          <strong>{bill.name}</strong>
-                          <small>{bill.category.name} · due day {bill.dueDay} · {memberNameById(bill.paidByMemberId)}</small>
+                        <div className="money-item-main">
+                          <div>
+                            <strong>{bill.name}</strong>
+                            <small>{bill.category.name} · due day {bill.dueDay} · {memberNameById(bill.paidByMemberId)}</small>
+                          </div>
+                          <div className="row-actions">
+                            <button type="button" onClick={() => startEditBill(bill)}>Edit</button>
+                            <button type="button" onClick={() => deleteRecurringBill(bill.id)}>Delete</button>
+                          </div>
                         </div>
                         <b>{bill.amount.toLocaleString('pl-PL')} PLN</b>
+                        {editingBillId === bill.id && (
+                          <form className="inline-edit-form" onSubmit={updateRecurringBill}>
+                            <label>
+                              Name
+                              <input value={editBillName} onChange={(event) => setEditBillName(event.target.value)} required />
+                            </label>
+                            <label>
+                              Amount PLN
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={editBillAmount}
+                                onChange={(event) => setEditBillAmount(event.target.value)}
+                                required
+                              />
+                            </label>
+                            <label>
+                              Category
+                              <select value={editBillCategoryId} onChange={(event) => setEditBillCategoryId(event.target.value)} required>
+                                {(expenseOverview?.categories ?? []).map((category) => (
+                                  <option value={category.id} key={category.id}>{category.name}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Paid by
+                              <select value={editBillPaidByMemberId} onChange={(event) => setEditBillPaidByMemberId(event.target.value)}>
+                                <option value="">Household</option>
+                                {(household?.members ?? []).map((member) => (
+                                  <option value={member.id} key={member.id}>{member.displayName}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Due day
+                              <input
+                                type="number"
+                                min="1"
+                                max="31"
+                                value={editBillDueDay}
+                                onChange={(event) => setEditBillDueDay(event.target.value)}
+                                required
+                              />
+                            </label>
+                            <div className="inline-edit-actions">
+                              <button type="submit" disabled={setupState === 'saving'}>Save</button>
+                              <button type="button" onClick={() => setEditingBillId(null)}>Cancel</button>
+                            </div>
+                          </form>
+                        )}
                       </article>
                     ))
                   ) : (

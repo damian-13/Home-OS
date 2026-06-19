@@ -49,6 +49,36 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
         return $category;
     }
 
+    public function getExpense(string $householdId, string $expenseId): Expense
+    {
+        $expense = $this->entityManager->getRepository(Expense::class)->findOneBy([
+            'id' => $expenseId,
+            'householdId' => $householdId,
+            'deletedAt' => null,
+        ]);
+
+        if (!$expense instanceof Expense) {
+            throw new NotFoundHttpException(sprintf('Expense "%s" was not found.', $expenseId));
+        }
+
+        return $expense;
+    }
+
+    public function getRecurringBill(string $householdId, string $billId): RecurringBill
+    {
+        $bill = $this->entityManager->getRepository(RecurringBill::class)->findOneBy([
+            'id' => $billId,
+            'householdId' => $householdId,
+            'deletedAt' => null,
+        ]);
+
+        if (!$bill instanceof RecurringBill) {
+            throw new NotFoundHttpException(sprintf('Recurring bill "%s" was not found.', $billId));
+        }
+
+        return $bill;
+    }
+
     public function categoriesForHousehold(string $householdId): array
     {
         return $this->entityManager->getRepository(ExpenseCategory::class)->findBy(
@@ -57,39 +87,90 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
         );
     }
 
-    public function latestExpenses(string $householdId, int $limit = 20): array
+    public function latestExpenses(string $householdId, ?DateTimeImmutable $from = null, ?DateTimeImmutable $to = null, ?string $categoryId = null, ?string $paidByMemberId = null, int $limit = 20): array
     {
-        return $this->entityManager->getRepository(Expense::class)
+        $builder = $this->entityManager->getRepository(Expense::class)
             ->createQueryBuilder('expense')
             ->andWhere('expense.householdId = :householdId')
+            ->andWhere('expense.deletedAt IS NULL')
             ->setParameter('householdId', $householdId)
             ->orderBy('expense.spentOn', 'DESC')
             ->addOrderBy('expense.id', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+            ->setMaxResults($limit);
+
+        if ($from) {
+            $builder
+                ->andWhere('expense.spentOn >= :latestFrom')
+                ->setParameter('latestFrom', $from);
+        }
+
+        if ($to) {
+            $builder
+                ->andWhere('expense.spentOn <= :latestTo')
+                ->setParameter('latestTo', $to);
+        }
+
+        $this->applyOptionalFilters($builder, $categoryId, $paidByMemberId);
+
+        return $builder->getQuery()->getResult();
     }
 
-    public function expensesBetween(string $householdId, DateTimeImmutable $from, DateTimeImmutable $to): array
+    public function expensesBetween(string $householdId, DateTimeImmutable $from, DateTimeImmutable $to, ?string $categoryId = null, ?string $paidByMemberId = null): array
     {
-        return $this->entityManager->getRepository(Expense::class)
+        $builder = $this->entityManager->getRepository(Expense::class)
             ->createQueryBuilder('expense')
             ->andWhere('expense.householdId = :householdId')
+            ->andWhere('expense.deletedAt IS NULL')
             ->andWhere('expense.spentOn >= :from')
             ->andWhere('expense.spentOn <= :to')
             ->setParameter('householdId', $householdId)
             ->setParameter('from', $from)
             ->setParameter('to', $to)
-            ->orderBy('expense.spentOn', 'DESC')
-            ->getQuery()
-            ->getResult();
+            ->orderBy('expense.spentOn', 'DESC');
+
+        $this->applyOptionalFilters($builder, $categoryId, $paidByMemberId);
+
+        return $builder->getQuery()->getResult();
     }
 
-    public function recurringBillsForHousehold(string $householdId): array
+    public function recurringBillsForHousehold(string $householdId, ?string $categoryId = null, ?string $paidByMemberId = null): array
     {
-        return $this->entityManager->getRepository(RecurringBill::class)->findBy(
-            ['householdId' => $householdId, 'active' => true],
-            ['dueDay' => 'ASC', 'name' => 'ASC'],
-        );
+        $builder = $this->entityManager->getRepository(RecurringBill::class)
+            ->createQueryBuilder('bill')
+            ->andWhere('bill.householdId = :householdId')
+            ->andWhere('bill.active = true')
+            ->andWhere('bill.deletedAt IS NULL')
+            ->setParameter('householdId', $householdId)
+            ->orderBy('bill.dueDay', 'ASC')
+            ->addOrderBy('bill.name', 'ASC');
+
+        if ($categoryId) {
+            $builder
+                ->andWhere('bill.category = :billCategoryId')
+                ->setParameter('billCategoryId', $categoryId);
+        }
+
+        if ($paidByMemberId) {
+            $builder
+                ->andWhere('bill.paidByMemberId = :billPaidByMemberId')
+                ->setParameter('billPaidByMemberId', $paidByMemberId);
+        }
+
+        return $builder->getQuery()->getResult();
+    }
+
+    private function applyOptionalFilters(\Doctrine\ORM\QueryBuilder $builder, ?string $categoryId, ?string $paidByMemberId): void
+    {
+        if ($categoryId) {
+            $builder
+                ->andWhere('expense.category = :categoryId')
+                ->setParameter('categoryId', $categoryId);
+        }
+
+        if ($paidByMemberId) {
+            $builder
+                ->andWhere('expense.paidByMemberId = :paidByMemberId')
+                ->setParameter('paidByMemberId', $paidByMemberId);
+        }
     }
 }

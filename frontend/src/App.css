@@ -539,6 +539,53 @@ h3 {
   gap: 14px;
 }
 
+.expense-filters {
+  display: grid;
+  grid-template-columns: 180px minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.expense-filters label,
+.inline-edit-form label {
+  display: grid;
+  gap: 7px;
+  color: #526178;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.expense-filters input,
+.expense-filters select,
+.inline-edit-form input,
+.inline-edit-form select {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  outline: 0;
+  padding: 8px 10px;
+}
+
+.expense-filters button,
+.row-actions button,
+.inline-edit-actions button {
+  min-height: 36px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #2142d8;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 12px;
+}
+
 .expense-form {
   align-content: start;
   padding: 16px;
@@ -574,6 +621,10 @@ h3 {
   background: #f7f9ff;
 }
 
+.money-item.editable {
+  align-items: start;
+}
+
 .money-item > span {
   width: 12px;
   height: 36px;
@@ -583,6 +634,21 @@ h3 {
 .money-item strong,
 .money-item small {
   display: block;
+}
+
+.money-item-main {
+  display: grid;
+  gap: 10px;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.row-actions button:last-child {
+  color: #c92835;
 }
 
 .money-item small {
@@ -595,6 +661,30 @@ h3 {
   color: #172033;
   font-size: 15px;
   white-space: nowrap;
+}
+
+.inline-edit-form {
+  grid-column: 2 / 4;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.inline-edit-actions {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.inline-edit-actions button:first-child {
+  border: 0;
+  background: linear-gradient(135deg, #2457ff, #18a67a);
+  color: #fff;
 }
 
 .category-strip {
@@ -834,7 +924,8 @@ h3 {
 
   .expenses-workspace,
   .expense-lists,
-  .placeholder-grid {
+  .placeholder-grid,
+  .expense-filters {
     grid-template-columns: 1fr;
   }
 
@@ -871,6 +962,11 @@ h3 {
 
   .money-item b {
     grid-column: 2;
+  }
+
+  .inline-edit-form {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
   }
 
   .auth-card {

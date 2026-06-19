@@ -42,6 +42,9 @@ class RecurringBill
     #[ORM\Column(type: 'datetime_immutable')]
     private DateTimeImmutable $createdAt;
 
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?DateTimeImmutable $deletedAt = null;
+
     public function __construct(
         string $id,
         string $householdId,
@@ -62,6 +65,20 @@ class RecurringBill
         $this->paidByMemberId = $paidByMemberId;
         $this->active = true;
         $this->createdAt = new DateTimeImmutable();
+    }
+
+    public function changeDetails(ExpenseCategory $category, string $name, int $amountCents, int $dueDay, ?string $paidByMemberId): void
+    {
+        $this->category = $category;
+        $this->name = $name;
+        $this->amountCents = $amountCents;
+        $this->dueDay = $dueDay;
+        $this->paidByMemberId = $paidByMemberId;
+    }
+
+    public function delete(): void
+    {
+        $this->deletedAt ??= new DateTimeImmutable();
     }
 
     public function id(): string
@@ -107,5 +124,10 @@ class RecurringBill
     public function active(): bool
     {
         return $this->active;
+    }
+
+    public function deletedAt(): ?DateTimeImmutable
+    {
+        return $this->deletedAt;
     }
 }

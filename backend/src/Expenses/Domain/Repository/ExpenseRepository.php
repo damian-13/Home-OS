@@ -16,6 +16,10 @@ interface ExpenseRepository
 
     public function getCategory(string $householdId, string $categoryId): ExpenseCategory;
 
+    public function getExpense(string $householdId, string $expenseId): Expense;
+
+    public function getRecurringBill(string $householdId, string $billId): RecurringBill;
+
     /**
      * @return list<ExpenseCategory>
      */
@@ -24,15 +28,15 @@ interface ExpenseRepository
     /**
      * @return list<Expense>
      */
-    public function latestExpenses(string $householdId, int $limit = 20): array;
+    public function latestExpenses(string $householdId, ?\DateTimeImmutable $from = null, ?\DateTimeImmutable $to = null, ?string $categoryId = null, ?string $paidByMemberId = null, int $limit = 20): array;
 
     /**
      * @return list<Expense>
      */
-    public function expensesBetween(string $householdId, \DateTimeImmutable $from, \DateTimeImmutable $to): array;
+    public function expensesBetween(string $householdId, \DateTimeImmutable $from, \DateTimeImmutable $to, ?string $categoryId = null, ?string $paidByMemberId = null): array;
 
     /**
      * @return list<RecurringBill>
      */
-    public function recurringBillsForHousehold(string $householdId): array;
+    public function recurringBillsForHousehold(string $householdId, ?string $categoryId = null, ?string $paidByMemberId = null): array;
 }

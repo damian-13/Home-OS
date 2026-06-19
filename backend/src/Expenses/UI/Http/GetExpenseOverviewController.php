@@ -6,6 +6,7 @@ use App\Expenses\Application\Query\GetExpenseOverviewQuery;
 use App\Identity\Application\Security\HouseholdAccess;
 use App\Shared\Application\Query\QueryBus;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
 final readonly class GetExpenseOverviewController
@@ -17,10 +18,15 @@ final readonly class GetExpenseOverviewController
     }
 
     #[Route('/api/households/{householdId}/expenses/overview', name: 'api_expenses_overview', methods: ['GET'])]
-    public function __invoke(string $householdId): JsonResponse
+    public function __invoke(string $householdId, Request $request): JsonResponse
     {
         $this->householdAccess->assertCanAccess($householdId);
 
-        return new JsonResponse($this->queryBus->ask(new GetExpenseOverviewQuery($householdId)));
+        return new JsonResponse($this->queryBus->ask(new GetExpenseOverviewQuery(
+            $householdId,
+            $request->query->get('month'),
+            $request->query->get('categoryId'),
+            $request->query->get('paidByMemberId'),
+        )));
     }
 }
