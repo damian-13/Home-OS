@@ -245,6 +245,13 @@ h2 {
   line-height: 1.18;
 }
 
+h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
 .api-pill {
   display: inline-flex;
   align-items: center;
@@ -356,6 +363,181 @@ h2 {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 18px 42px rgba(39, 55, 88, 0.1);
+}
+
+.expenses-panel {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 42px rgba(39, 55, 88, 0.1);
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.expense-total {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  padding: 14px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2457ff, #18a67a);
+  color: #fff;
+}
+
+.expense-total span,
+.expense-total strong {
+  display: block;
+}
+
+.expense-total span {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.expense-total strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.expense-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.expense-summary-grid article {
+  display: grid;
+  gap: 8px;
+  min-height: 96px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f3f7ff;
+}
+
+.expense-summary-grid article:nth-child(2) {
+  background: #fff5df;
+}
+
+.expense-summary-grid article:nth-child(3) {
+  background: #f0fff7;
+}
+
+.expense-summary-grid span {
+  color: #66748a;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.expense-summary-grid strong {
+  align-self: end;
+  color: #14213d;
+  font-size: 25px;
+}
+
+.expenses-workspace {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.expense-form {
+  align-content: start;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.expense-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.expense-lists > section {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.money-list {
+  display: grid;
+  gap: 10px;
+}
+
+.money-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.money-item > span {
+  width: 12px;
+  height: 36px;
+  border-radius: 999px;
+}
+
+.money-item strong,
+.money-item small {
+  display: block;
+}
+
+.money-item small {
+  margin-top: 3px;
+  color: #66748a;
+  font-size: 12px;
+}
+
+.money-item b {
+  color: #172033;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.category-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.category-strip article {
+  display: grid;
+  gap: 7px;
+  min-height: 88px;
+  padding: 13px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #d8e0ee;
+}
+
+.category-strip article > span {
+  width: 32px;
+  height: 5px;
+  border-radius: 999px;
+}
+
+.category-strip strong,
+.category-strip small {
+  display: block;
+}
+
+.category-strip small {
+  color: #66748a;
+  font-weight: 850;
 }
 
 .panel-copy {
@@ -541,11 +723,13 @@ h2 {
 
   .topbar,
   .focus-panel,
-  .setup-panel {
+  .setup-panel,
+  .section-heading {
     grid-template-columns: 1fr;
   }
 
-  .topbar {
+  .topbar,
+  .section-heading {
     display: grid;
   }
 
@@ -554,6 +738,16 @@ h2 {
   }
 
   .module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .expenses-workspace,
+  .expense-lists {
+    grid-template-columns: 1fr;
+  }
+
+  .category-strip,
+  .expense-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -569,8 +763,18 @@ h2 {
 
   .auth-preview,
   .module-grid,
+  .category-strip,
+  .expense-summary-grid,
   .nav-list {
     grid-template-columns: 1fr;
+  }
+
+  .money-item {
+    grid-template-columns: 12px minmax(0, 1fr);
+  }
+
+  .money-item b {
+    grid-column: 2;
   }
 
   .auth-card {

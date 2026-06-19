@@ -28,6 +28,9 @@ services:
     App\Household\Domain\Repository\HouseholdRepository:
         alias: App\Household\Infrastructure\Persistence\DoctrineHouseholdRepository
 
+    App\Expenses\Domain\Repository\ExpenseRepository:
+        alias: App\Expenses\Infrastructure\Persistence\DoctrineExpenseRepository
+
     App\Shared\Application\Command\CommandBus:
         alias: App\Shared\Application\Command\SynchronousCommandBus
 

@@ -38,6 +38,43 @@ type CurrentUser = {
   linkedMemberId: string | null
 }
 
+type ExpenseCategory = {
+  id: string
+  name: string
+  slug: string
+  color: string
+}
+
+type ExpenseItem = {
+  id: string
+  description: string
+  amount: number
+  currency: string
+  spentOn: string
+  category: ExpenseCategory
+  paidByMemberId: string | null
+}
+
+type RecurringBill = {
+  id: string
+  name: string
+  amount: number
+  currency: string
+  dueDay: number
+  category: ExpenseCategory
+  paidByMemberId: string | null
+}
+
+type ExpenseOverview = {
+  currency: string
+  monthTotal: number
+  recurringMonthlyTotal: number
+  categories: ExpenseCategory[]
+  latestExpenses: ExpenseItem[]
+  recurringBills: RecurringBill[]
+  byCategory: Array<{ name: string; color: string; amount: number }>
+}
+
 const fallbackDashboard: Dashboard = {
   app: 'Home OS',
   status: 'offline',
@@ -51,6 +88,8 @@ const fallbackDashboard: Dashboard = {
 }
 
 const householdStorageKey = 'home-os.household-id'
+
+const today = new Date().toISOString().slice(0, 10)
 
 async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -75,6 +114,7 @@ function App() {
   const [sessionState, setSessionState] = useState<'checking' | 'ready'>('checking')
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [household, setHousehold] = useState<Household | null>(null)
+  const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null)
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,6 +123,16 @@ function App() {
   const [memberType, setMemberType] = useState<'adult' | 'child'>('adult')
   const [setupState, setSetupState] = useState<'idle' | 'saving' | 'error'>('idle')
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [expenseDescription, setExpenseDescription] = useState('')
+  const [expenseAmount, setExpenseAmount] = useState('')
+  const [expenseCategoryId, setExpenseCategoryId] = useState('')
+  const [expensePaidByMemberId, setExpensePaidByMemberId] = useState('')
+  const [expenseSpentOn, setExpenseSpentOn] = useState(today)
+  const [billName, setBillName] = useState('')
+  const [billAmount, setBillAmount] = useState('')
+  const [billCategoryId, setBillCategoryId] = useState('')
+  const [billPaidByMemberId, setBillPaidByMemberId] = useState('')
+  const [billDueDay, setBillDueDay] = useState('10')
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -112,7 +162,10 @@ function App() {
         }
 
         window.localStorage.setItem(householdStorageKey, user.householdId)
-        return apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold)
+        return Promise.all([
+          apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
+          loadExpenseOverview(user.householdId),
+        ])
       })
       .catch(() => {
         setCurrentUser(null)
@@ -149,6 +202,7 @@ function App() {
       })
       const { user } = await apiJson<{ user: CurrentUser }>('/api/auth/me')
       const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
+      await loadExpenseOverview(user.householdId)
       window.localStorage.setItem(householdStorageKey, user.householdId)
       setCurrentUser(user)
       setHousehold(nextHousehold)
@@ -163,7 +217,21 @@ function App() {
     await fetch('/api/auth/logout', { credentials: 'same-origin' }).catch(() => undefined)
     setCurrentUser(null)
     setHousehold(null)
+    setExpenseOverview(null)
     window.localStorage.removeItem(householdStorageKey)
+  }
+
+  const loadExpenseOverview = async (householdId: string) => {
+    const overview = await apiJson<ExpenseOverview>(`/api/households/${householdId}/expenses/overview`)
+    setExpenseOverview(overview)
+
+    if (!expenseCategoryId && overview.categories[0]) {
+      setExpenseCategoryId(overview.categories[0].id)
+    }
+
+    if (!billCategoryId && overview.categories[0]) {
+      setBillCategoryId(overview.categories[0].id)
+    }
   }
 
   const addMember = async (event: FormEvent<HTMLFormElement>) => {
@@ -193,6 +261,73 @@ function App() {
     }
   }
 
+  const addExpense = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !expenseCategoryId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses`, {
+        method: 'POST',
+        body: JSON.stringify({
+          categoryId: expenseCategoryId,
+          description: expenseDescription,
+          amount: Number(expenseAmount),
+          spentOn: expenseSpentOn,
+          paidByMemberId: expensePaidByMemberId || null,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setExpenseDescription('')
+      setExpenseAmount('')
+      setExpenseSpentOn(today)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const addRecurringBill = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !billCategoryId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/recurring-bills`, {
+        method: 'POST',
+        body: JSON.stringify({
+          categoryId: billCategoryId,
+          name: billName,
+          amount: Number(billAmount),
+          dueDay: Number(billDueDay),
+          paidByMemberId: billPaidByMemberId || null,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setBillName('')
+      setBillAmount('')
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const memberNameById = (memberId: string | null) => {
+    if (!memberId || !household) {
+      return 'Household'
+    }
+
+    return household.members.find((member) => member.id === memberId)?.displayName ?? 'Household'
+  }
+
   const modules = [
     {
       title: 'Home',
@@ -202,7 +337,7 @@ function App() {
     },
     {
       title: 'Expenses',
-      value: `${dashboard.summary.monthlySpend.toLocaleString('pl-PL')} PLN`,
+      value: `${(expenseOverview?.monthTotal ?? dashboard.summary.monthlySpend).toLocaleString('pl-PL')} PLN`,
       label: 'this month',
       detail: 'Budgets, bills, receipts, reports',
     },
@@ -431,6 +566,187 @@ function App() {
               {setupState === 'error' && <p className="form-error">Could not save member.</p>}
             </div>
           )}
+        </section>
+
+        <section className="expenses-panel" id="expenses">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Expenses</p>
+              <h2>Track household spending in PLN.</h2>
+            </div>
+            <div className="expense-total">
+              <span>This month</span>
+              <strong>{(expenseOverview?.monthTotal ?? 0).toLocaleString('pl-PL')} PLN</strong>
+            </div>
+          </div>
+
+          <div className="expense-summary-grid">
+            <article>
+              <span>Recurring monthly</span>
+              <strong>{(expenseOverview?.recurringMonthlyTotal ?? 0).toLocaleString('pl-PL')} PLN</strong>
+            </article>
+            <article>
+              <span>Categories</span>
+              <strong>{expenseOverview?.categories.length ?? 0}</strong>
+            </article>
+            <article>
+              <span>Latest entries</span>
+              <strong>{expenseOverview?.latestExpenses.length ?? 0}</strong>
+            </article>
+          </div>
+
+          <div className="expenses-workspace">
+            <form className="setup-form expense-form" onSubmit={addExpense}>
+              <h3>Add expense</h3>
+              <label>
+                Description
+                <input value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} required />
+              </label>
+              <label>
+                Amount PLN
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={expenseAmount}
+                  onChange={(event) => setExpenseAmount(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Category
+                <select value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required>
+                  {(expenseOverview?.categories ?? []).map((category) => (
+                    <option value={category.id} key={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Paid by
+                <select value={expensePaidByMemberId} onChange={(event) => setExpensePaidByMemberId(event.target.value)}>
+                  <option value="">Household</option>
+                  {(household?.members ?? []).map((member) => (
+                    <option value={member.id} key={member.id}>{member.displayName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Date
+                <input type="date" value={expenseSpentOn} onChange={(event) => setExpenseSpentOn(event.target.value)} required />
+              </label>
+              <button type="submit" disabled={setupState === 'saving'}>
+                Add expense
+              </button>
+            </form>
+
+            <form className="setup-form expense-form" onSubmit={addRecurringBill}>
+              <h3>Add recurring bill</h3>
+              <label>
+                Name
+                <input value={billName} onChange={(event) => setBillName(event.target.value)} required />
+              </label>
+              <label>
+                Amount PLN
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={billAmount}
+                  onChange={(event) => setBillAmount(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Category
+                <select value={billCategoryId} onChange={(event) => setBillCategoryId(event.target.value)} required>
+                  {(expenseOverview?.categories ?? []).map((category) => (
+                    <option value={category.id} key={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Paid by
+                <select value={billPaidByMemberId} onChange={(event) => setBillPaidByMemberId(event.target.value)}>
+                  <option value="">Household</option>
+                  {(household?.members ?? []).map((member) => (
+                    <option value={member.id} key={member.id}>{member.displayName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Due day
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={billDueDay}
+                  onChange={(event) => setBillDueDay(event.target.value)}
+                  required
+                />
+              </label>
+              <button type="submit" disabled={setupState === 'saving'}>
+                Add bill
+              </button>
+            </form>
+          </div>
+
+          <div className="expense-lists">
+            <section>
+              <h3>Latest expenses</h3>
+              <div className="money-list">
+                {(expenseOverview?.latestExpenses ?? []).length > 0 ? (
+                  expenseOverview?.latestExpenses.map((expense) => (
+                    <article className="money-item" key={expense.id}>
+                      <span style={{ background: expense.category.color }}></span>
+                      <div>
+                        <strong>{expense.description}</strong>
+                        <small>{expense.category.name} · {memberNameById(expense.paidByMemberId)} · {expense.spentOn}</small>
+                      </div>
+                      <b>{expense.amount.toLocaleString('pl-PL')} PLN</b>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-state">No expenses yet.</p>
+                )}
+              </div>
+            </section>
+
+            <section>
+              <h3>Recurring bills</h3>
+              <div className="money-list">
+                {(expenseOverview?.recurringBills ?? []).length > 0 ? (
+                  expenseOverview?.recurringBills.map((bill) => (
+                    <article className="money-item" key={bill.id}>
+                      <span style={{ background: bill.category.color }}></span>
+                      <div>
+                        <strong>{bill.name}</strong>
+                        <small>{bill.category.name} · due day {bill.dueDay} · {memberNameById(bill.paidByMemberId)}</small>
+                      </div>
+                      <b>{bill.amount.toLocaleString('pl-PL')} PLN</b>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-state">No recurring bills yet.</p>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <section className="category-strip" aria-label="Spending by category">
+            {(expenseOverview?.byCategory ?? []).length > 0 ? (
+              expenseOverview?.byCategory.map((category) => (
+                <article key={category.name}>
+                  <span style={{ background: category.color }}></span>
+                  <strong>{category.name}</strong>
+                  <small>{category.amount.toLocaleString('pl-PL')} PLN</small>
+                </article>
+              ))
+            ) : (
+              <p className="empty-state">Category totals will appear after you add expenses this month.</p>
+            )}
+          </section>
+
+          {setupState === 'error' && <p className="form-error">Could not save expenses data.</p>}
         </section>
 
         <section className="focus-panel">
