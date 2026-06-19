@@ -72,15 +72,17 @@ async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
 function App() {
   const [dashboard, setDashboard] = useState<Dashboard>(fallbackDashboard)
   const [apiState, setApiState] = useState<'checking' | 'online' | 'offline'>('checking')
+  const [sessionState, setSessionState] = useState<'checking' | 'ready'>('checking')
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [household, setHousehold] = useState<Household | null>(null)
-  const [householdName, setHouseholdName] = useState('Home OS Household')
-  const [email, setEmail] = useState('damian@example.test')
-  const [password, setPassword] = useState('password123')
-  const [displayName, setDisplayName] = useState('Damian')
+  const [householdName, setHouseholdName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [memberName, setMemberName] = useState('')
   const [memberType, setMemberType] = useState<'adult' | 'child'>('adult')
   const [setupState, setSetupState] = useState<'idle' | 'saving' | 'error'>('idle')
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -116,6 +118,9 @@ function App() {
         setCurrentUser(null)
         window.localStorage.removeItem(householdStorageKey)
       })
+      .finally(() => {
+        setSessionState('ready')
+      })
   }, [])
 
   const register = async (event: FormEvent<HTMLFormElement>) => {
@@ -147,6 +152,7 @@ function App() {
       window.localStorage.setItem(householdStorageKey, user.householdId)
       setCurrentUser(user)
       setHousehold(nextHousehold)
+      setPassword('')
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -214,6 +220,125 @@ function App() {
     },
   ]
 
+  if (sessionState === 'checking') {
+    return (
+      <main className="auth-page">
+        <section className="auth-loading" aria-label="Loading Home OS">
+          <span className="brand-mark">H</span>
+          <strong>Opening Home OS</strong>
+        </section>
+      </main>
+    )
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="auth-page">
+        <section className="auth-hero">
+          <div className="brand auth-brand">
+            <span className="brand-mark">H</span>
+            <div>
+              <strong>{dashboard.app}</strong>
+              <span>Private family control center</span>
+            </div>
+          </div>
+
+          <div className="auth-copy">
+            <p className="eyebrow">Home, money, health</p>
+            <h1>One calm command center for your family life.</h1>
+            <p>
+              Track household members, bills, health records, documents, and future Home Assistant devices from one private app.
+            </p>
+          </div>
+
+          <div className="auth-preview" aria-label="Home OS preview">
+            <article>
+              <span>Expenses</span>
+              <strong>1 284 PLN</strong>
+              <small>monthly view</small>
+            </article>
+            <article>
+              <span>Health</span>
+              <strong>12</strong>
+              <small>markers tracked</small>
+            </article>
+            <article>
+              <span>Home</span>
+              <strong>3</strong>
+              <small>tasks due</small>
+            </article>
+          </div>
+        </section>
+
+        <section className="auth-card" aria-label="Authentication">
+          <div>
+            <p className="eyebrow">{authMode === 'login' ? 'Welcome Back' : 'First Setup'}</p>
+            <h2>{authMode === 'login' ? 'Log in to Home OS' : 'Create your Home OS account'}</h2>
+          </div>
+
+          <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
+            <button className={authMode === 'login' ? 'active' : ''} type="button" onClick={() => setAuthMode('login')}>
+              Log in
+            </button>
+            <button className={authMode === 'register' ? 'active' : ''} type="button" onClick={() => setAuthMode('register')}>
+              Register
+            </button>
+          </div>
+
+          {authMode === 'login' ? (
+            <form className="setup-form auth-form" onSubmit={login}>
+              <label>
+                Email
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              </label>
+              <label>
+                Password
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+              </label>
+              <button type="submit" disabled={setupState === 'saving'}>
+                {setupState === 'saving' ? 'Logging in...' : 'Log in'}
+              </button>
+            </form>
+          ) : (
+            <form className="setup-form auth-form" onSubmit={register}>
+              <label>
+                Display name
+                <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
+              </label>
+              <label>
+                Email
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  minLength={8}
+                  required
+                />
+              </label>
+              <label>
+                Household name
+                <input value={householdName} onChange={(event) => setHouseholdName(event.target.value)} required />
+              </label>
+              <button type="submit" disabled={setupState === 'saving'}>
+                {setupState === 'saving' ? 'Creating account...' : 'Create account'}
+              </button>
+            </form>
+          )}
+
+          {setupState === 'error' && <p className="form-error">Could not authenticate. Check the details and try again.</p>}
+          <div className={`api-pill ${apiState}`}>
+            <span></span>
+            API {apiState}
+          </div>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -221,7 +346,7 @@ function App() {
           <span className="brand-mark">H</span>
           <div>
             <strong>{dashboard.app}</strong>
-            <span>Family control center</span>
+            <span>{currentUser.displayName}</span>
           </div>
         </div>
 
@@ -238,12 +363,11 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Today</p>
-            <h1>Your home, money, and health in one place.</h1>
+            <h1>Welcome back, {currentUser.displayName}.</h1>
           </div>
-          <div className={`api-pill ${apiState}`}>
-            <span></span>
-            API {apiState}
-          </div>
+          <button className="logout-button" type="button" onClick={logout}>
+            Log out
+          </button>
         </header>
 
         <section className="module-grid" aria-label="Overview modules">
@@ -259,66 +383,16 @@ function App() {
 
         <section className="setup-panel" id="household">
           <div>
-            <p className="eyebrow">{currentUser ? 'Household' : 'Account'}</p>
-            <h2>{currentUser ? household?.name ?? 'Loading household...' : 'Create your Home OS account.'}</h2>
+            <p className="eyebrow">Household</p>
+            <h2>{household?.name ?? 'Loading household...'}</h2>
             <p className="panel-copy">
-              {currentUser && household
-                ? `${household.defaultCurrency} is set as the household currency.`
-                : 'Register the first family account. It creates your household and links your member profile automatically.'}
+              {household
+                ? `${household.defaultCurrency} is set as the household currency. Add adults and children here as the family grows.`
+                : 'Loading your household workspace.'}
             </p>
-            {currentUser && (
-              <button className="text-button" type="button" onClick={logout}>
-                Log out {currentUser.email}
-              </button>
-            )}
           </div>
 
-          {!currentUser ? (
-            <div className="auth-grid">
-              <form className="setup-form" onSubmit={register}>
-                <label>
-                  Display name
-                  <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
-                </label>
-                <label>
-                  Email
-                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-                </label>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    minLength={8}
-                    required
-                  />
-                </label>
-                <label>
-                  Household name
-                  <input value={householdName} onChange={(event) => setHouseholdName(event.target.value)} required />
-                </label>
-                <button type="submit" disabled={setupState === 'saving'}>
-                  Register
-                </button>
-              </form>
-
-              <form className="setup-form" onSubmit={login}>
-                <label>
-                  Email
-                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-                </label>
-                <label>
-                  Password
-                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-                </label>
-                <button type="submit" disabled={setupState === 'saving'}>
-                  Log in
-                </button>
-              </form>
-              {setupState === 'error' && <p className="form-error">Could not authenticate.</p>}
-            </div>
-          ) : !household ? (
+          {!household ? (
             <div className="empty-state">Loading household...</div>
           ) : (
             <div className="member-workspace">
