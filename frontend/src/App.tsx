@@ -157,6 +157,7 @@ function App() {
   const [billCategoryId, setBillCategoryId] = useState('')
   const [billPaidByMemberId, setBillPaidByMemberId] = useState('')
   const [billDueDay, setBillDueDay] = useState('10')
+  const [openExpenseCreator, setOpenExpenseCreator] = useState<'expense' | 'bill' | null>(null)
   const [expenseFilterMonth, setExpenseFilterMonth] = useState(currentMonth)
   const [expenseFilterCategoryId, setExpenseFilterCategoryId] = useState('')
   const [expenseFilterPaidByMemberId, setExpenseFilterPaidByMemberId] = useState('')
@@ -356,6 +357,7 @@ function App() {
       setExpenseDescription('')
       setExpenseAmount('')
       setExpenseSpentOn(today)
+      setOpenExpenseCreator(null)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -385,6 +387,7 @@ function App() {
       await loadExpenseOverview(household.id)
       setBillName('')
       setBillAmount('')
+      setOpenExpenseCreator(null)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -893,100 +896,127 @@ function App() {
               </button>
             </section>
 
-            <div className="expenses-workspace">
-              <form className="setup-form expense-form" onSubmit={addExpense}>
-                <h3>Add expense</h3>
-                <label>
-                  Description
-                  <input value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} required />
-                </label>
-                <label>
-                  Amount PLN
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={expenseAmount}
-                    onChange={(event) => setExpenseAmount(event.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  Category
-                  <select value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required>
-                    {(expenseOverview?.categories ?? []).map((category) => (
-                      <option value={category.id} key={category.id}>{category.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Paid by
-                  <select value={expensePaidByMemberId} onChange={(event) => setExpensePaidByMemberId(event.target.value)}>
-                    <option value="">Household</option>
-                    {(household?.members ?? []).map((member) => (
-                      <option value={member.id} key={member.id}>{member.displayName}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Date
-                  <input type="date" value={expenseSpentOn} onChange={(event) => setExpenseSpentOn(event.target.value)} required />
-                </label>
-                <button type="submit" disabled={setupState === 'saving'}>
-                  Add expense
+            <section className="expense-create-bar" aria-label="Add expense data">
+              <div>
+                <h3>Add new data</h3>
+                <p>Open a form only when you need to add a transaction or bill.</p>
+              </div>
+              <div className="expense-create-actions">
+                <button
+                  type="button"
+                  className={openExpenseCreator === 'expense' ? 'active' : ''}
+                  onClick={() => setOpenExpenseCreator(openExpenseCreator === 'expense' ? null : 'expense')}
+                >
+                  {openExpenseCreator === 'expense' ? 'Close expense' : 'Add expense'}
                 </button>
-              </form>
+                <button
+                  type="button"
+                  className={openExpenseCreator === 'bill' ? 'active' : ''}
+                  onClick={() => setOpenExpenseCreator(openExpenseCreator === 'bill' ? null : 'bill')}
+                >
+                  {openExpenseCreator === 'bill' ? 'Close bill' : 'Add recurring bill'}
+                </button>
+              </div>
+            </section>
 
-              <form className="setup-form expense-form" onSubmit={addRecurringBill}>
-                <h3>Add recurring bill</h3>
-                <label>
-                  Name
-                  <input value={billName} onChange={(event) => setBillName(event.target.value)} required />
-                </label>
-                <label>
-                  Amount PLN
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={billAmount}
-                    onChange={(event) => setBillAmount(event.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  Category
-                  <select value={billCategoryId} onChange={(event) => setBillCategoryId(event.target.value)} required>
-                    {(expenseOverview?.categories ?? []).map((category) => (
-                      <option value={category.id} key={category.id}>{category.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Paid by
-                  <select value={billPaidByMemberId} onChange={(event) => setBillPaidByMemberId(event.target.value)}>
-                    <option value="">Household</option>
-                    {(household?.members ?? []).map((member) => (
-                      <option value={member.id} key={member.id}>{member.displayName}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Due day
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    value={billDueDay}
-                    onChange={(event) => setBillDueDay(event.target.value)}
-                    required
-                  />
-                </label>
-                <button type="submit" disabled={setupState === 'saving'}>
-                  Add bill
-                </button>
-              </form>
-            </div>
+            {openExpenseCreator && (
+              <section className="expense-create-panel">
+                {openExpenseCreator === 'expense' ? (
+                  <form className="setup-form expense-form" onSubmit={addExpense}>
+                    <h3>Add expense</h3>
+                    <label>
+                      Description
+                      <input value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} required />
+                    </label>
+                    <label>
+                      Amount PLN
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={expenseAmount}
+                        onChange={(event) => setExpenseAmount(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Category
+                      <select value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required>
+                        {(expenseOverview?.categories ?? []).map((category) => (
+                          <option value={category.id} key={category.id}>{category.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Paid by
+                      <select value={expensePaidByMemberId} onChange={(event) => setExpensePaidByMemberId(event.target.value)}>
+                        <option value="">Household</option>
+                        {(household?.members ?? []).map((member) => (
+                          <option value={member.id} key={member.id}>{member.displayName}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Date
+                      <input type="date" value={expenseSpentOn} onChange={(event) => setExpenseSpentOn(event.target.value)} required />
+                    </label>
+                    <button type="submit" disabled={setupState === 'saving'}>
+                      Add expense
+                    </button>
+                  </form>
+                ) : (
+                  <form className="setup-form expense-form" onSubmit={addRecurringBill}>
+                    <h3>Add recurring bill</h3>
+                    <label>
+                      Name
+                      <input value={billName} onChange={(event) => setBillName(event.target.value)} required />
+                    </label>
+                    <label>
+                      Amount PLN
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={billAmount}
+                        onChange={(event) => setBillAmount(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Category
+                      <select value={billCategoryId} onChange={(event) => setBillCategoryId(event.target.value)} required>
+                        {(expenseOverview?.categories ?? []).map((category) => (
+                          <option value={category.id} key={category.id}>{category.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Paid by
+                      <select value={billPaidByMemberId} onChange={(event) => setBillPaidByMemberId(event.target.value)}>
+                        <option value="">Household</option>
+                        {(household?.members ?? []).map((member) => (
+                          <option value={member.id} key={member.id}>{member.displayName}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Due day
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={billDueDay}
+                        onChange={(event) => setBillDueDay(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <button type="submit" disabled={setupState === 'saving'}>
+                      Add bill
+                    </button>
+                  </form>
+                )}
+              </section>
+            )}
 
             <div className="expense-lists">
               <section>
