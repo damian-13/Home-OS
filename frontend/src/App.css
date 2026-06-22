@@ -1015,6 +1015,62 @@ h3 {
   gap: 14px;
 }
 
+.health-documents-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.document-upload-form {
+  grid-template-columns: minmax(180px, 0.7fr) minmax(220px, 1fr) auto;
+  align-items: end;
+}
+
+.health-document-list {
+  display: grid;
+  gap: 10px;
+}
+
+.health-document-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.health-document-item strong,
+.health-document-item small {
+  display: block;
+}
+
+.health-document-item small {
+  margin-top: 4px;
+  color: #66748a;
+  font-size: 12px;
+}
+
+.health-document-item a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #2142d8;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 0 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .health-lists > section,
 .marker-history-panel {
   display: grid;
@@ -1228,6 +1284,7 @@ h3 {
   .expense-filters,
   .health-filters,
   .health-form,
+  .document-upload-form,
   .marker-row {
     grid-template-columns: 1fr;
   }
@@ -1288,6 +1345,10 @@ h3 {
   .inline-edit-form {
     grid-column: 1 / -1;
     grid-template-columns: 1fr;
+  }
+
+  .health-document-item {
+    display: grid;
   }
 
   .auth-card {

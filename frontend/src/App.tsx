@@ -111,6 +111,17 @@ type HealthOverview = {
   markerNames: string[]
 }
 
+type HealthDocument = {
+  id: string
+  memberId: string | null
+  documentType: string
+  originalName: string
+  mimeType: string
+  size: number
+  uploadedAt: string
+  downloadUrl: string
+}
+
 type MarkerFormRow = {
   id: string
   markerName: string
@@ -183,6 +194,20 @@ async function apiNoContent(url: string, options?: RequestInit): Promise<void> {
   }
 }
 
+async function apiFormData<T>(url: string, body: FormData): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    body,
+  })
+
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status}`)
+  }
+
+  return response.json() as Promise<T>
+}
+
 function App() {
   const [dashboard, setDashboard] = useState<Dashboard>(fallbackDashboard)
   const [apiState, setApiState] = useState<'checking' | 'online' | 'offline'>('checking')
@@ -191,6 +216,7 @@ function App() {
   const [household, setHousehold] = useState<Household | null>(null)
   const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null)
   const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null)
+  const [healthDocuments, setHealthDocuments] = useState<HealthDocument[]>([])
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -235,6 +261,8 @@ function App() {
   const [markerRows, setMarkerRows] = useState<MarkerFormRow[]>([createMarkerRow()])
   const [selectedMarkerName, setSelectedMarkerName] = useState('')
   const [markerHistory, setMarkerHistory] = useState<BloodTestMarker[]>([])
+  const [documentMemberId, setDocumentMemberId] = useState('')
+  const [documentFile, setDocumentFile] = useState<File | null>(null)
 
   useEffect(() => {
     const readPageFromHash = () => {
@@ -283,6 +311,7 @@ function App() {
           apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
+          loadHealthDocuments(user.householdId),
         ])
       })
       .catch(() => {
@@ -322,10 +351,12 @@ function App() {
       const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
+      await loadHealthDocuments(user.householdId)
       window.localStorage.setItem(householdStorageKey, user.householdId)
       setCurrentUser(user)
       setHousehold(nextHousehold)
       setBloodTestMemberId(user.linkedMemberId ?? nextHousehold.members[0]?.id ?? '')
+      setDocumentMemberId(user.linkedMemberId ?? nextHousehold.members[0]?.id ?? '')
       setPassword('')
       setSetupState('idle')
     } catch {
@@ -339,6 +370,7 @@ function App() {
     setHousehold(null)
     setExpenseOverview(null)
     setHealthOverview(null)
+    setHealthDocuments([])
     setMarkerHistory([])
     window.localStorage.removeItem(householdStorageKey)
   }
@@ -389,6 +421,17 @@ function App() {
     }
   }
 
+  const loadHealthDocuments = async (householdId: string) => {
+    const params = new URLSearchParams()
+
+    if (healthMemberFilterId) {
+      params.set('memberId', healthMemberFilterId)
+    }
+
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    setHealthDocuments(await apiJson<HealthDocument[]>(`/api/households/${householdId}/health/documents${suffix}`))
+  }
+
   const loadMarkerHistory = async (householdId: string, markerName: string) => {
     if (!markerName) {
       setMarkerHistory([])
@@ -412,11 +455,15 @@ function App() {
     if (household && !bloodTestMemberId) {
       setBloodTestMemberId(currentUser?.linkedMemberId ?? household.members[0]?.id ?? '')
     }
-  }, [household, currentUser, bloodTestMemberId])
+    if (household && !documentMemberId) {
+      setDocumentMemberId(currentUser?.linkedMemberId ?? household.members[0]?.id ?? '')
+    }
+  }, [household, currentUser, bloodTestMemberId, documentMemberId])
 
   useEffect(() => {
     if (currentUser) {
       loadHealthOverview(currentUser.householdId).catch(() => setSetupState('error'))
+      loadHealthDocuments(currentUser.householdId).catch(() => setSetupState('error'))
     }
   }, [healthMemberFilterId])
 
@@ -670,12 +717,47 @@ function App() {
     }
   }
 
+  const uploadHealthDocument = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !documentFile) {
+      return
+    }
+
+    const body = new FormData()
+    body.append('file', documentFile)
+    body.append('documentType', 'lab_result')
+
+    if (documentMemberId) {
+      body.append('memberId', documentMemberId)
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiFormData<{ id: string }>(`/api/households/${household.id}/health/documents`, body)
+      await loadHealthDocuments(household.id)
+      setDocumentFile(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
   const memberNameById = (memberId: string | null) => {
     if (!memberId || !household) {
       return 'Household'
     }
 
     return household.members.find((member) => member.id === memberId)?.displayName ?? 'Household'
+  }
+
+  const formatFileSize = (size: number) => {
+    if (size < 1024 * 1024) {
+      return `${Math.max(1, Math.round(size / 1024)).toLocaleString('pl-PL')} KB`
+    }
+
+    return `${(size / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`
   }
 
   const modules = [
@@ -1527,6 +1609,59 @@ function App() {
                 </form>
               </section>
             )}
+
+            <section className="health-documents-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Documents</p>
+                  <h2>Lab result files.</h2>
+                  <p className="panel-copy">Upload PDFs or photos now. OCR import will use these originals in the next layer.</p>
+                </div>
+              </div>
+
+              <form className="setup-form document-upload-form" onSubmit={uploadHealthDocument}>
+                <label>
+                  Family member
+                  <select value={documentMemberId} onChange={(event) => setDocumentMemberId(event.target.value)}>
+                    <option value="">Household</option>
+                    {(household?.members ?? []).map((member) => (
+                      <option value={member.id} key={member.id}>{member.displayName}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  PDF or photo
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                    required
+                  />
+                </label>
+                <button type="submit" disabled={setupState === 'saving' || !documentFile}>
+                  Upload file
+                </button>
+              </form>
+
+              <div className="health-document-list">
+                {healthDocuments.length > 0 ? (
+                  healthDocuments.map((document) => (
+                    <article className="health-document-item" key={document.id}>
+                      <div>
+                        <strong>{document.originalName}</strong>
+                        <small>
+                          {memberNameById(document.memberId)} · {formatFileSize(document.size)} ·{' '}
+                          {new Date(document.uploadedAt).toLocaleDateString('pl-PL')}
+                        </small>
+                      </div>
+                      <a href={document.downloadUrl}>Download</a>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-state">No health documents uploaded yet.</p>
+                )}
+              </div>
+            </section>
 
             <div className="health-lists">
               <section>

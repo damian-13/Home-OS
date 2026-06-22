@@ -4,6 +4,7 @@ namespace App\Health\Infrastructure\Persistence;
 
 use App\Health\Domain\Model\BloodTest;
 use App\Health\Domain\Model\BloodTestMarker;
+use App\Health\Domain\Model\HealthDocument;
 use App\Health\Domain\Repository\HealthRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -18,6 +19,38 @@ final readonly class DoctrineHealthRepository implements HealthRepository
     {
         $this->entityManager->persist($bloodTest);
         $this->entityManager->flush();
+    }
+
+    public function saveDocument(HealthDocument $document): void
+    {
+        $this->entityManager->persist($document);
+        $this->entityManager->flush();
+    }
+
+    public function latestDocuments(string $householdId, ?string $memberId = null, int $limit = 20): array
+    {
+        $builder = $this->entityManager->getRepository(HealthDocument::class)
+            ->createQueryBuilder('document')
+            ->andWhere('document.householdId = :householdId')
+            ->setParameter('householdId', $householdId)
+            ->orderBy('document.uploadedAt', 'DESC')
+            ->setMaxResults($limit);
+
+        if ($memberId) {
+            $builder
+                ->andWhere('document.memberId = :memberId')
+                ->setParameter('memberId', $memberId);
+        }
+
+        return $builder->getQuery()->getResult();
+    }
+
+    public function documentById(string $householdId, string $documentId): ?HealthDocument
+    {
+        return $this->entityManager->getRepository(HealthDocument::class)->findOneBy([
+            'householdId' => $householdId,
+            'id' => $documentId,
+        ]);
     }
 
     public function latestBloodTests(string $householdId, ?string $memberId = null, int $limit = 10): array
