@@ -4,6 +4,7 @@ namespace App\Health\UI\Http;
 
 use App\Health\Domain\Repository\HealthRepository;
 use App\Health\Infrastructure\Document\DocumentTextExtractor;
+use App\Health\Infrastructure\Document\LabResultTextParser;
 use App\Identity\Application\Security\HouseholdAccess;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
@@ -14,6 +15,7 @@ final readonly class ExtractHealthDocumentTextController
         private HealthRepository $health,
         private HouseholdAccess $householdAccess,
         private DocumentTextExtractor $extractor,
+        private LabResultTextParser $parser,
     ) {
     }
 
@@ -35,6 +37,7 @@ final readonly class ExtractHealthDocumentTextController
             'status' => $result['status'],
             'text' => $result['text'],
             'message' => $result['message'],
+            'markers' => $result['text'] !== '' ? $this->parser->parse($result['text']) : [],
         ]);
     }
 }

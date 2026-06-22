@@ -128,6 +128,15 @@ type DocumentExtraction = {
   status: 'extracted' | 'empty' | 'failed' | 'missing_file' | 'tool_missing' | 'unsupported'
   text: string
   message: string | null
+  markers: Array<{
+    markerName: string
+    value: number
+    unit: string
+    referenceMin: number | null
+    referenceMax: number | null
+    status: 'normal' | 'low' | 'high' | 'unknown'
+    notes: string | null
+  }>
 }
 
 type MarkerFormRow = {
@@ -813,6 +822,18 @@ function App() {
       setExtractedText(extraction.text)
       setExtractionStatus(extraction.status)
       setExtractionMessage(extraction.message ?? '')
+      if (extraction.markers.length > 0) {
+        setImportMarkerRows(extraction.markers.map((marker) => ({
+          id: crypto.randomUUID(),
+          markerName: marker.markerName,
+          value: String(marker.value),
+          unit: marker.unit,
+          referenceMin: marker.referenceMin === null ? '' : String(marker.referenceMin),
+          referenceMax: marker.referenceMax === null ? '' : String(marker.referenceMax),
+          status: marker.status,
+          notes: marker.notes ?? '',
+        })))
+      }
       setSetupState('idle')
     } catch {
       setExtractionStatus('failed')
