@@ -34,6 +34,7 @@ final readonly class AddBloodTestHandler implements CommandHandler
             new DateTimeImmutable($command->testedAt),
             $command->labName ? trim($command->labName) : null,
             $command->notes ? trim($command->notes) : null,
+            $command->sourceDocumentId,
         );
 
         foreach ($command->markers as $marker) {

@@ -31,6 +31,9 @@ class BloodTest
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes;
 
+    #[ORM\Column(name: 'source_document_id', type: 'string', length: 36, nullable: true)]
+    private ?string $sourceDocumentId;
+
     #[ORM\Column(type: 'datetime_immutable')]
     private DateTimeImmutable $createdAt;
 
@@ -40,7 +43,15 @@ class BloodTest
     #[ORM\OneToMany(mappedBy: 'bloodTest', targetEntity: BloodTestMarker::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $markers;
 
-    public function __construct(string $id, string $householdId, string $memberId, DateTimeImmutable $testedAt, ?string $labName, ?string $notes)
+    public function __construct(
+        string $id,
+        string $householdId,
+        string $memberId,
+        DateTimeImmutable $testedAt,
+        ?string $labName,
+        ?string $notes,
+        ?string $sourceDocumentId = null,
+    )
     {
         $this->id = $id;
         $this->householdId = $householdId;
@@ -48,6 +59,7 @@ class BloodTest
         $this->testedAt = $testedAt;
         $this->labName = $labName;
         $this->notes = $notes;
+        $this->sourceDocumentId = $sourceDocumentId;
         $this->createdAt = new DateTimeImmutable();
         $this->markers = new ArrayCollection();
     }
@@ -96,6 +108,11 @@ class BloodTest
     public function notes(): ?string
     {
         return $this->notes;
+    }
+
+    public function sourceDocumentId(): ?string
+    {
+        return $this->sourceDocumentId;
     }
 
     /**

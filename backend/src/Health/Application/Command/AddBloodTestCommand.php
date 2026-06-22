@@ -7,7 +7,7 @@ use App\Shared\Application\Command\Command;
 final readonly class AddBloodTestCommand implements Command
 {
     /**
-     * @param list<array{name: string, value: float|int|string, unit: string, referenceMin?: float|int|string|null, referenceMax?: float|int|string|null, status?: string|null, notes?: string|null}> $markers
+     * @param list<array{name?: string, markerName?: string, value: float|int|string, unit: string, referenceMin?: float|int|string|null, referenceMax?: float|int|string|null, status?: string|null, notes?: string|null}> $markers
      */
     public function __construct(
         public string $householdId,
@@ -16,6 +16,7 @@ final readonly class AddBloodTestCommand implements Command
         public ?string $labName,
         public ?string $notes,
         public array $markers,
+        public ?string $sourceDocumentId = null,
     ) {
     }
 }

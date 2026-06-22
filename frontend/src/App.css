@@ -1055,7 +1055,16 @@ h3 {
   font-size: 12px;
 }
 
-.health-document-item a {
+.health-document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.health-document-item a,
+.health-document-actions button,
+.import-review-heading button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1064,11 +1073,53 @@ h3 {
   border-radius: 8px;
   background: #fff;
   color: #2142d8;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 900;
   padding: 0 12px;
   text-decoration: none;
   white-space: nowrap;
+}
+
+.health-document-actions button {
+  border-color: transparent;
+  background: linear-gradient(135deg, #2457ff, #18a67a);
+  color: #fff;
+}
+
+.import-review-panel {
+  padding: 16px;
+  border: 1px solid #bfd0f3;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fbff 0%, #fff 100%);
+}
+
+.import-review-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.import-review-heading p:last-child {
+  margin-top: 5px;
+  color: #66748a;
+  font-size: 14px;
+}
+
+.import-review-heading button {
+  color: #c92835;
+}
+
+.import-review-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.import-review-panel > button[type='submit'] {
+  justify-self: start;
 }
 
 .health-lists > section,
@@ -1285,6 +1336,7 @@ h3 {
   .health-filters,
   .health-form,
   .document-upload-form,
+  .import-review-fields,
   .marker-row {
     grid-template-columns: 1fr;
   }
@@ -1348,6 +1400,15 @@ h3 {
   }
 
   .health-document-item {
+    display: grid;
+  }
+
+  .health-document-actions,
+  .import-review-heading {
+    justify-content: start;
+  }
+
+  .import-review-heading {
     display: grid;
   }
 

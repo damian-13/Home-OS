@@ -100,6 +100,7 @@ type BloodTest = {
   testedAt: string
   labName: string | null
   notes: string | null
+  sourceDocumentId: string | null
   markers: BloodTestMarker[]
   createdAt: string
 }
@@ -263,6 +264,12 @@ function App() {
   const [markerHistory, setMarkerHistory] = useState<BloodTestMarker[]>([])
   const [documentMemberId, setDocumentMemberId] = useState('')
   const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [importDocument, setImportDocument] = useState<HealthDocument | null>(null)
+  const [importMemberId, setImportMemberId] = useState('')
+  const [importTestedAt, setImportTestedAt] = useState(today)
+  const [importLabName, setImportLabName] = useState('')
+  const [importNotes, setImportNotes] = useState('')
+  const [importMarkerRows, setImportMarkerRows] = useState<MarkerFormRow[]>([createMarkerRow()])
 
   useEffect(() => {
     const readPageFromHash = () => {
@@ -673,8 +680,25 @@ function App() {
     setMarkerRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
   }
 
+  const updateImportMarkerRow = (rowId: string, field: keyof MarkerFormRow, value: string) => {
+    setImportMarkerRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
+  }
+
   const removeMarkerRow = (rowId: string) => {
     setMarkerRows((rows) => (rows.length === 1 ? rows : rows.filter((row) => row.id !== rowId)))
+  }
+
+  const removeImportMarkerRow = (rowId: string) => {
+    setImportMarkerRows((rows) => (rows.length === 1 ? rows : rows.filter((row) => row.id !== rowId)))
+  }
+
+  const startDocumentImport = (document: HealthDocument) => {
+    setImportDocument(document)
+    setImportMemberId(document.memberId ?? currentUser?.linkedMemberId ?? household?.members[0]?.id ?? '')
+    setImportTestedAt(today)
+    setImportLabName('')
+    setImportNotes(`Imported from ${document.originalName}`)
+    setImportMarkerRows([createMarkerRow()])
   }
 
   const addBloodTest = async (event: FormEvent<HTMLFormElement>) => {
@@ -711,6 +735,46 @@ function App() {
       setBloodTestNotes('')
       setMarkerRows([createMarkerRow()])
       setOpenBloodTestCreator(false)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const saveDocumentImport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !importDocument || !importMemberId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/health/blood-tests`, {
+        method: 'POST',
+        body: JSON.stringify({
+          memberId: importMemberId,
+          testedAt: importTestedAt,
+          labName: importLabName || null,
+          notes: importNotes || null,
+          sourceDocumentId: importDocument.id,
+          markers: importMarkerRows.map((row) => ({
+            markerName: row.markerName,
+            value: Number(row.value),
+            unit: row.unit,
+            referenceMin: row.referenceMin ? Number(row.referenceMin) : null,
+            referenceMax: row.referenceMax ? Number(row.referenceMax) : null,
+            status: row.status,
+            notes: row.notes || null,
+          })),
+        }),
+      })
+      await loadHealthOverview(household.id)
+      setImportDocument(null)
+      setImportLabName('')
+      setImportNotes('')
+      setImportMarkerRows([createMarkerRow()])
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -758,6 +822,14 @@ function App() {
     }
 
     return `${(size / 1024 / 1024).toLocaleString('pl-PL', { maximumFractionDigits: 1 })} MB`
+  }
+
+  const documentNameById = (documentId: string | null) => {
+    if (!documentId) {
+      return null
+    }
+
+    return healthDocuments.find((document) => document.id === documentId)?.originalName ?? 'Uploaded document'
   }
 
   const modules = [
@@ -1654,13 +1726,135 @@ function App() {
                           {new Date(document.uploadedAt).toLocaleDateString('pl-PL')}
                         </small>
                       </div>
-                      <a href={document.downloadUrl}>Download</a>
+                      <div className="health-document-actions">
+                        <button type="button" onClick={() => startDocumentImport(document)}>
+                          Import
+                        </button>
+                        <a href={document.downloadUrl}>Download</a>
+                      </div>
                     </article>
                   ))
                 ) : (
                   <p className="empty-state">No health documents uploaded yet.</p>
                 )}
               </div>
+
+              {importDocument && (
+                <form className="setup-form import-review-panel" onSubmit={saveDocumentImport}>
+                  <div className="import-review-heading">
+                    <div>
+                      <p className="eyebrow">Review Import</p>
+                      <h3>{importDocument.originalName}</h3>
+                      <p>Enter or correct the data from this file before saving it as a blood test.</p>
+                    </div>
+                    <button type="button" onClick={() => setImportDocument(null)}>
+                      Close
+                    </button>
+                  </div>
+
+                  <div className="import-review-fields">
+                    <label>
+                      Family member
+                      <select value={importMemberId} onChange={(event) => setImportMemberId(event.target.value)} required>
+                        {(household?.members ?? []).map((member) => (
+                          <option value={member.id} key={member.id}>{member.displayName}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Test date
+                      <input type="date" value={importTestedAt} onChange={(event) => setImportTestedAt(event.target.value)} required />
+                    </label>
+                    <label>
+                      Lab
+                      <input value={importLabName} onChange={(event) => setImportLabName(event.target.value)} placeholder="Diagnostyka" />
+                    </label>
+                    <label className="health-notes">
+                      Notes
+                      <input value={importNotes} onChange={(event) => setImportNotes(event.target.value)} />
+                    </label>
+                  </div>
+
+                  <div className="marker-form-list">
+                    <div className="marker-form-heading">
+                      <h3>Markers from document</h3>
+                      <button type="button" onClick={() => setImportMarkerRows((rows) => [...rows, createMarkerRow()])}>
+                        Add marker
+                      </button>
+                    </div>
+                    {importMarkerRows.map((row) => (
+                      <div className="marker-row" key={row.id}>
+                        <label>
+                          Marker
+                          <input
+                            value={row.markerName}
+                            onChange={(event) => updateImportMarkerRow(row.id, 'markerName', event.target.value)}
+                            placeholder="Hemoglobina"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Value
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={row.value}
+                            onChange={(event) => updateImportMarkerRow(row.id, 'value', event.target.value)}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Unit
+                          <input
+                            value={row.unit}
+                            onChange={(event) => updateImportMarkerRow(row.id, 'unit', event.target.value)}
+                            placeholder="g/dl"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Ref min
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={row.referenceMin}
+                            onChange={(event) => updateImportMarkerRow(row.id, 'referenceMin', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Ref max
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={row.referenceMax}
+                            onChange={(event) => updateImportMarkerRow(row.id, 'referenceMax', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Status
+                          <select value={row.status} onChange={(event) => updateImportMarkerRow(row.id, 'status', event.target.value)}>
+                            <option value="unknown">Unknown</option>
+                            <option value="normal">Normal</option>
+                            <option value="low">Low</option>
+                            <option value="high">High</option>
+                          </select>
+                        </label>
+                        <label className="marker-note-field">
+                          Marker notes
+                          <input value={row.notes} onChange={(event) => updateImportMarkerRow(row.id, 'notes', event.target.value)} />
+                        </label>
+                        <button type="button" className="remove-marker" onClick={() => removeImportMarkerRow(row.id)}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button type="submit" disabled={setupState === 'saving'}>
+                    Save imported blood test
+                  </button>
+                </form>
+              )}
             </section>
 
             <div className="health-lists">
@@ -1672,7 +1866,11 @@ function App() {
                       <article className="blood-test-card" key={test.id}>
                         <div>
                           <strong>{memberNameById(test.memberId)} · {test.testedAt}</strong>
-                          <small>{test.labName ?? 'Lab not set'}{test.notes ? ` · ${test.notes}` : ''}</small>
+                          <small>
+                            {test.labName ?? 'Lab not set'}
+                            {test.sourceDocumentId ? ` · from ${documentNameById(test.sourceDocumentId)}` : ''}
+                            {test.notes ? ` · ${test.notes}` : ''}
+                          </small>
                         </div>
                         <div className="marker-chip-list">
                           {test.markers.map((marker) => (

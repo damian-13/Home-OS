@@ -32,6 +32,7 @@ final readonly class AddBloodTestController
                 isset($payload['labName']) && trim((string) $payload['labName']) !== '' ? (string) $payload['labName'] : null,
                 isset($payload['notes']) && trim((string) $payload['notes']) !== '' ? (string) $payload['notes'] : null,
                 is_array($payload['markers'] ?? null) ? $payload['markers'] : [],
+                isset($payload['sourceDocumentId']) && trim((string) $payload['sourceDocumentId']) !== '' ? (string) $payload['sourceDocumentId'] : null,
             ));
         } catch (InvalidArgumentException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);

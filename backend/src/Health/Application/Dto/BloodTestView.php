@@ -15,6 +15,7 @@ final readonly class BloodTestView
         public string $testedAt,
         public ?string $labName,
         public ?string $notes,
+        public ?string $sourceDocumentId,
         public array $markers,
     ) {
     }
@@ -27,6 +28,7 @@ final readonly class BloodTestView
             $bloodTest->testedAt()->format('Y-m-d'),
             $bloodTest->labName(),
             $bloodTest->notes(),
+            $bloodTest->sourceDocumentId(),
             array_map(static fn ($marker) => BloodTestMarkerView::fromMarker($marker), $bloodTest->markers()),
         );
     }
