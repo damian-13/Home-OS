@@ -1064,7 +1064,7 @@ h3 {
 
 .health-document-item a,
 .health-document-actions button,
-.import-review-heading button {
+.import-review-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1107,8 +1107,61 @@ h3 {
   font-size: 14px;
 }
 
-.import-review-heading button {
+.import-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.import-review-actions button:last-child {
   color: #c92835;
+}
+
+.extraction-preview {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.extraction-preview > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.extraction-preview span {
+  min-height: 26px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2142d8;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 5px 9px;
+  text-transform: uppercase;
+}
+
+.extraction-preview p {
+  color: #66748a;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.extraction-preview pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #11192b;
+  color: #f8fbff;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .import-review-fields {
@@ -1404,7 +1457,8 @@ h3 {
   }
 
   .health-document-actions,
-  .import-review-heading {
+  .import-review-heading,
+  .import-review-actions {
     justify-content: start;
   }
 

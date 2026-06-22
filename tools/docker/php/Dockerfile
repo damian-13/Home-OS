@@ -7,6 +7,10 @@ RUN apk add --no-cache \
     icu-dev \
     libpq-dev \
     linux-headers \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    tesseract-ocr-data-pol \
     unzip \
     zip
 

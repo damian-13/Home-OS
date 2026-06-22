@@ -123,6 +123,13 @@ type HealthDocument = {
   downloadUrl: string
 }
 
+type DocumentExtraction = {
+  documentId: string
+  status: 'extracted' | 'empty' | 'failed' | 'missing_file' | 'tool_missing' | 'unsupported'
+  text: string
+  message: string | null
+}
+
 type MarkerFormRow = {
   id: string
   markerName: string
@@ -270,6 +277,9 @@ function App() {
   const [importLabName, setImportLabName] = useState('')
   const [importNotes, setImportNotes] = useState('')
   const [importMarkerRows, setImportMarkerRows] = useState<MarkerFormRow[]>([createMarkerRow()])
+  const [extractedText, setExtractedText] = useState('')
+  const [extractionStatus, setExtractionStatus] = useState<DocumentExtraction['status'] | ''>('')
+  const [extractionMessage, setExtractionMessage] = useState('')
 
   useEffect(() => {
     const readPageFromHash = () => {
@@ -699,6 +709,9 @@ function App() {
     setImportLabName('')
     setImportNotes(`Imported from ${document.originalName}`)
     setImportMarkerRows([createMarkerRow()])
+    setExtractedText('')
+    setExtractionStatus('')
+    setExtractionMessage('')
   }
 
   const addBloodTest = async (event: FormEvent<HTMLFormElement>) => {
@@ -775,8 +788,35 @@ function App() {
       setImportLabName('')
       setImportNotes('')
       setImportMarkerRows([createMarkerRow()])
+      setExtractedText('')
+      setExtractionStatus('')
+      setExtractionMessage('')
       setSetupState('idle')
     } catch {
+      setSetupState('error')
+    }
+  }
+
+  const extractHealthDocumentText = async (document: HealthDocument) => {
+    if (!household) {
+      return
+    }
+
+    startDocumentImport(document)
+    setSetupState('saving')
+
+    try {
+      const extraction = await apiJson<DocumentExtraction>(
+        `/api/households/${household.id}/health/documents/${document.id}/extract-text`,
+        { method: 'POST' },
+      )
+      setExtractedText(extraction.text)
+      setExtractionStatus(extraction.status)
+      setExtractionMessage(extraction.message ?? '')
+      setSetupState('idle')
+    } catch {
+      setExtractionStatus('failed')
+      setExtractionMessage('Could not extract text from this document.')
       setSetupState('error')
     }
   }
@@ -1730,6 +1770,9 @@ function App() {
                         <button type="button" onClick={() => startDocumentImport(document)}>
                           Import
                         </button>
+                        <button type="button" onClick={() => extractHealthDocumentText(document)}>
+                          Extract text
+                        </button>
                         <a href={document.downloadUrl}>Download</a>
                       </div>
                     </article>
@@ -1747,10 +1790,26 @@ function App() {
                       <h3>{importDocument.originalName}</h3>
                       <p>Enter or correct the data from this file before saving it as a blood test.</p>
                     </div>
-                    <button type="button" onClick={() => setImportDocument(null)}>
-                      Close
-                    </button>
+                    <div className="import-review-actions">
+                      <button type="button" onClick={() => extractHealthDocumentText(importDocument)} disabled={setupState === 'saving'}>
+                        Extract text
+                      </button>
+                      <button type="button" onClick={() => setImportDocument(null)}>
+                        Close
+                      </button>
+                    </div>
                   </div>
+
+                  {(extractionStatus || extractedText) && (
+                    <section className="extraction-preview">
+                      <div>
+                        <strong>Extracted text</strong>
+                        <span>{extractionStatus || 'waiting'}</span>
+                      </div>
+                      {extractionMessage && <p>{extractionMessage}</p>}
+                      {extractedText ? <pre>{extractedText}</pre> : <p>No text extracted yet.</p>}
+                    </section>
+                  )}
 
                   <div className="import-review-fields">
                     <label>
