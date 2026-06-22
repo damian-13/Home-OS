@@ -76,6 +76,35 @@ final readonly class LabResultTextParser
         return array_values($markers);
     }
 
+    public function testedAt(string $text): ?string
+    {
+        $patterns = [
+            '/data\s+(?:pobrania|wykonania|rejestracji|rej)\s*[:.-]?\s*(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/iu',
+            '/data\s+(?:pobrania|wykonania|rejestracji|rej)\s*[:.-]?\s*(\d{1,2})[-.\/](\d{1,2})[-.\/](\d{4})/iu',
+            '/(?:data|dria)?\s*(?:pobrania|wykonania|rejestracji|rej)\s*[:.-]?\s*((?:19|20)\d{2})(\d{2})(\d{2})/iu',
+            '/\b(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})\b/u',
+            '/\b(\d{1,2})[-.\/](\d{1,2})[-.\/](\d{4})\b/u',
+            '/\b((?:19|20)\d{2})(\d{2})(\d{2})\b/u',
+        ];
+
+        foreach ($patterns as $index => $pattern) {
+            if (!preg_match($pattern, $text, $matches)) {
+                continue;
+            }
+
+            $date = match ($index) {
+                0, 2, 3, 5 => $this->formatDate((int) $matches[1], (int) $matches[2], (int) $matches[3]),
+                default => $this->formatDate((int) $matches[3], (int) $matches[2], (int) $matches[1]),
+            };
+
+            if ($date !== null) {
+                return $date;
+            }
+        }
+
+        return null;
+    }
+
     private function normalizeForMatch(string $value): string
     {
         $value = str_replace(['ą', 'ć', 'ę', 'ł', 'ń', 'ó', 'ś', 'ź', 'ż'], ['a', 'c', 'e', 'l', 'n', 'o', 's', 'z', 'z'], mb_strtolower($value));
@@ -102,6 +131,15 @@ final readonly class LabResultTextParser
         }
 
         return (float) $normalized;
+    }
+
+    private function formatDate(int $year, int $month, int $day): ?string
+    {
+        if (!checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', $year, $month, $day);
     }
 
     private function status(float $value, ?float $referenceMin, ?float $referenceMax): string

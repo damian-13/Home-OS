@@ -128,6 +128,7 @@ type DocumentExtraction = {
   status: 'extracted' | 'empty' | 'failed' | 'missing_file' | 'tool_missing' | 'unsupported'
   text: string
   message: string | null
+  suggestedTestedAt: string | null
   markers: Array<{
     markerName: string
     value: number
@@ -283,6 +284,7 @@ function App() {
   const [importDocument, setImportDocument] = useState<HealthDocument | null>(null)
   const [importMemberId, setImportMemberId] = useState('')
   const [importTestedAt, setImportTestedAt] = useState(today)
+  const [importSuggestedTestedAt, setImportSuggestedTestedAt] = useState('')
   const [importLabName, setImportLabName] = useState('')
   const [importNotes, setImportNotes] = useState('')
   const [importMarkerRows, setImportMarkerRows] = useState<MarkerFormRow[]>([createMarkerRow()])
@@ -715,6 +717,7 @@ function App() {
     setImportDocument(document)
     setImportMemberId(document.memberId ?? currentUser?.linkedMemberId ?? household?.members[0]?.id ?? '')
     setImportTestedAt(today)
+    setImportSuggestedTestedAt('')
     setImportLabName('')
     setImportNotes(`Imported from ${document.originalName}`)
     setImportMarkerRows([createMarkerRow()])
@@ -794,6 +797,7 @@ function App() {
       })
       await loadHealthOverview(household.id)
       setImportDocument(null)
+      setImportSuggestedTestedAt('')
       setImportLabName('')
       setImportNotes('')
       setImportMarkerRows([createMarkerRow()])
@@ -822,6 +826,10 @@ function App() {
       setExtractedText(extraction.text)
       setExtractionStatus(extraction.status)
       setExtractionMessage(extraction.message ?? '')
+      setImportSuggestedTestedAt(extraction.suggestedTestedAt ?? '')
+      if (extraction.suggestedTestedAt) {
+        setImportTestedAt(extraction.suggestedTestedAt)
+      }
       if (extraction.markers.length > 0) {
         setImportMarkerRows(extraction.markers.map((marker) => ({
           id: crypto.randomUUID(),
@@ -1856,6 +1864,15 @@ function App() {
                   )}
 
                   <div className="import-review-fields">
+                    <label className="import-date-field">
+                      Result date
+                      <input type="date" value={importTestedAt} onChange={(event) => setImportTestedAt(event.target.value)} required />
+                      <span>
+                        {importSuggestedTestedAt
+                          ? `Suggested from file: ${importSuggestedTestedAt}`
+                          : 'Set the original lab result date for correct history graphs.'}
+                      </span>
+                    </label>
                     <label>
                       Family member
                       <select value={importMemberId} onChange={(event) => setImportMemberId(event.target.value)} required>
@@ -1863,10 +1880,6 @@ function App() {
                           <option value={member.id} key={member.id}>{member.displayName}</option>
                         ))}
                       </select>
-                    </label>
-                    <label>
-                      Test date
-                      <input type="date" value={importTestedAt} onChange={(event) => setImportTestedAt(event.target.value)} required />
                     </label>
                     <label>
                       Lab

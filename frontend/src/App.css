@@ -1171,6 +1171,24 @@ h3 {
   align-items: end;
 }
 
+.import-date-field {
+  grid-column: 1 / -1;
+  padding: 14px;
+  border: 1px solid #bad5ff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #eef6ff, #f7fff9);
+}
+
+.import-date-field input {
+  max-width: 220px;
+}
+
+.import-date-field span {
+  color: #476071;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .import-review-panel > button[type='submit'] {
   justify-self: start;
 }

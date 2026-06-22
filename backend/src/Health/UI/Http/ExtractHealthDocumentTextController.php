@@ -37,6 +37,7 @@ final readonly class ExtractHealthDocumentTextController
             'status' => $result['status'],
             'text' => $result['text'],
             'message' => $result['message'],
+            'suggestedTestedAt' => $result['text'] !== '' ? $this->parser->testedAt($result['text']) : null,
             'markers' => $result['text'] !== '' ? $this->parser->parse($result['text']) : [],
         ]);
     }
