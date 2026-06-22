@@ -37,7 +37,7 @@ final readonly class AddBloodTestHandler implements CommandHandler
         );
 
         foreach ($command->markers as $marker) {
-            $name = trim((string) ($marker['name'] ?? ''));
+            $name = trim((string) ($marker['markerName'] ?? $marker['name'] ?? ''));
             $unit = trim((string) ($marker['unit'] ?? ''));
 
             if ($name === '' || $unit === '') {
