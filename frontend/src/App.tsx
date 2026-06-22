@@ -80,6 +80,48 @@ type ExpenseOverview = {
   }
 }
 
+type BloodTestMarker = {
+  id: string
+  bloodTestId: string
+  name: string
+  value: number
+  unit: string
+  referenceMin: number | null
+  referenceMax: number | null
+  status: 'normal' | 'low' | 'high' | 'unknown'
+  notes: string | null
+  testedAt: string
+  memberId: string
+}
+
+type BloodTest = {
+  id: string
+  memberId: string
+  testedAt: string
+  labName: string | null
+  notes: string | null
+  markers: BloodTestMarker[]
+  createdAt: string
+}
+
+type HealthOverview = {
+  memberId: string | null
+  latestBloodTests: BloodTest[]
+  outOfRangeMarkers: BloodTestMarker[]
+  markerNames: string[]
+}
+
+type MarkerFormRow = {
+  id: string
+  markerName: string
+  value: string
+  unit: string
+  referenceMin: string
+  referenceMax: string
+  status: 'normal' | 'low' | 'high' | 'unknown'
+  notes: string
+}
+
 type AppPage = 'dashboard' | 'household' | 'expenses' | 'health' | 'documents'
 
 const fallbackDashboard: Dashboard = {
@@ -98,6 +140,16 @@ const householdStorageKey = 'home-os.household-id'
 
 const today = new Date().toISOString().slice(0, 10)
 const currentMonth = today.slice(0, 7)
+const createMarkerRow = (): MarkerFormRow => ({
+  id: crypto.randomUUID(),
+  markerName: '',
+  value: '',
+  unit: '',
+  referenceMin: '',
+  referenceMax: '',
+  status: 'unknown',
+  notes: '',
+})
 
 async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -138,6 +190,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [household, setHousehold] = useState<Household | null>(null)
   const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null)
+  const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null)
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -173,6 +226,15 @@ function App() {
   const [editBillCategoryId, setEditBillCategoryId] = useState('')
   const [editBillPaidByMemberId, setEditBillPaidByMemberId] = useState('')
   const [editBillDueDay, setEditBillDueDay] = useState('10')
+  const [healthMemberFilterId, setHealthMemberFilterId] = useState('')
+  const [openBloodTestCreator, setOpenBloodTestCreator] = useState(false)
+  const [bloodTestMemberId, setBloodTestMemberId] = useState('')
+  const [bloodTestTestedAt, setBloodTestTestedAt] = useState(today)
+  const [bloodTestLabName, setBloodTestLabName] = useState('')
+  const [bloodTestNotes, setBloodTestNotes] = useState('')
+  const [markerRows, setMarkerRows] = useState<MarkerFormRow[]>([createMarkerRow()])
+  const [selectedMarkerName, setSelectedMarkerName] = useState('')
+  const [markerHistory, setMarkerHistory] = useState<BloodTestMarker[]>([])
 
   useEffect(() => {
     const readPageFromHash = () => {
@@ -220,6 +282,7 @@ function App() {
         return Promise.all([
           apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
           loadExpenseOverview(user.householdId),
+          loadHealthOverview(user.householdId),
         ])
       })
       .catch(() => {
@@ -258,9 +321,11 @@ function App() {
       const { user } = await apiJson<{ user: CurrentUser }>('/api/auth/me')
       const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
       await loadExpenseOverview(user.householdId)
+      await loadHealthOverview(user.householdId)
       window.localStorage.setItem(householdStorageKey, user.householdId)
       setCurrentUser(user)
       setHousehold(nextHousehold)
+      setBloodTestMemberId(user.linkedMemberId ?? nextHousehold.members[0]?.id ?? '')
       setPassword('')
       setSetupState('idle')
     } catch {
@@ -273,6 +338,8 @@ function App() {
     setCurrentUser(null)
     setHousehold(null)
     setExpenseOverview(null)
+    setHealthOverview(null)
+    setMarkerHistory([])
     window.localStorage.removeItem(householdStorageKey)
   }
 
@@ -305,6 +372,59 @@ function App() {
       loadExpenseOverview(currentUser.householdId).catch(() => setSetupState('error'))
     }
   }, [expenseFilterMonth, expenseFilterCategoryId, expenseFilterPaidByMemberId])
+
+  const loadHealthOverview = async (householdId: string) => {
+    const params = new URLSearchParams()
+
+    if (healthMemberFilterId) {
+      params.set('memberId', healthMemberFilterId)
+    }
+
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    const overview = await apiJson<HealthOverview>(`/api/households/${householdId}/health/overview${suffix}`)
+    setHealthOverview(overview)
+
+    if (!selectedMarkerName && overview.markerNames[0]) {
+      setSelectedMarkerName(overview.markerNames[0])
+    }
+  }
+
+  const loadMarkerHistory = async (householdId: string, markerName: string) => {
+    if (!markerName) {
+      setMarkerHistory([])
+      return
+    }
+
+    const params = new URLSearchParams()
+
+    if (healthMemberFilterId) {
+      params.set('memberId', healthMemberFilterId)
+    }
+
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    const history = await apiJson<BloodTestMarker[]>(
+      `/api/households/${householdId}/health/markers/${encodeURIComponent(markerName)}/history${suffix}`,
+    )
+    setMarkerHistory(history)
+  }
+
+  useEffect(() => {
+    if (household && !bloodTestMemberId) {
+      setBloodTestMemberId(currentUser?.linkedMemberId ?? household.members[0]?.id ?? '')
+    }
+  }, [household, currentUser, bloodTestMemberId])
+
+  useEffect(() => {
+    if (currentUser) {
+      loadHealthOverview(currentUser.householdId).catch(() => setSetupState('error'))
+    }
+  }, [healthMemberFilterId])
+
+  useEffect(() => {
+    if (currentUser && selectedMarkerName) {
+      loadMarkerHistory(currentUser.householdId, selectedMarkerName).catch(() => setSetupState('error'))
+    }
+  }, [selectedMarkerName, healthMemberFilterId])
 
   const addMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -502,6 +622,54 @@ function App() {
     }
   }
 
+  const updateMarkerRow = (rowId: string, field: keyof MarkerFormRow, value: string) => {
+    setMarkerRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
+  }
+
+  const removeMarkerRow = (rowId: string) => {
+    setMarkerRows((rows) => (rows.length === 1 ? rows : rows.filter((row) => row.id !== rowId)))
+  }
+
+  const addBloodTest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !bloodTestMemberId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/health/blood-tests`, {
+        method: 'POST',
+        body: JSON.stringify({
+          memberId: bloodTestMemberId,
+          testedAt: bloodTestTestedAt,
+          labName: bloodTestLabName || null,
+          notes: bloodTestNotes || null,
+          markers: markerRows.map((row) => ({
+            markerName: row.markerName,
+            value: Number(row.value),
+            unit: row.unit,
+            referenceMin: row.referenceMin ? Number(row.referenceMin) : null,
+            referenceMax: row.referenceMax ? Number(row.referenceMax) : null,
+            status: row.status,
+            notes: row.notes || null,
+          })),
+        }),
+      })
+      await loadHealthOverview(household.id)
+      setBloodTestTestedAt(today)
+      setBloodTestLabName('')
+      setBloodTestNotes('')
+      setMarkerRows([createMarkerRow()])
+      setOpenBloodTestCreator(false)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
   const memberNameById = (memberId: string | null) => {
     if (!memberId || !household) {
       return 'Household'
@@ -525,8 +693,8 @@ function App() {
     },
     {
       title: 'Health',
-      value: dashboard.summary.healthMarkersTracked,
-      label: 'markers',
+      value: healthOverview?.markerNames.length ?? dashboard.summary.healthMarkersTracked,
+      label: 'markers tracked',
       detail: 'Blood tests, trends, documents',
     },
     {
@@ -563,8 +731,8 @@ function App() {
     },
     health: {
       eyebrow: 'Health',
-      title: 'Health records will live here.',
-      copy: 'Blood tests, markers, appointments, symptoms, and documents will become a dedicated health workspace.',
+      title: 'Blood tests and health markers.',
+      copy: 'Store family lab results, watch out-of-range markers, and build history over time.',
     },
     documents: {
       eyebrow: 'Documents',
@@ -1186,18 +1354,263 @@ function App() {
         )}
 
         {activePage === 'health' && (
-          <section className="placeholder-grid">
-            {[
-              ['Blood tests', 'Markers, reference ranges, and trends over time.'],
-              ['Appointments', 'Visits, reminders, and notes for every family member.'],
-              ['Health files', 'Lab PDFs, prescriptions, and medical documents.'],
-            ].map(([title, copy]) => (
-              <article className="placeholder-card" key={title}>
-                <span></span>
-                <h2>{title}</h2>
-                <p>{copy}</p>
+          <section className="health-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Health</p>
+                <h2>Blood tests, markers, and trends.</h2>
+              </div>
+              <div className="expense-total health-total">
+                <span>Out of range</span>
+                <strong>{healthOverview?.outOfRangeMarkers.length ?? 0}</strong>
+              </div>
+            </div>
+
+            <p className="health-warning">
+              Home OS stores and organizes your health data. It does not diagnose, so always use lab ranges and doctor guidance.
+            </p>
+
+            <div className="expense-summary-grid health-summary-grid">
+              <article>
+                <span>Blood tests</span>
+                <strong>{healthOverview?.latestBloodTests.length ?? 0}</strong>
               </article>
-            ))}
+              <article>
+                <span>Tracked markers</span>
+                <strong>{healthOverview?.markerNames.length ?? 0}</strong>
+              </article>
+              <article>
+                <span>Family filter</span>
+                <strong>{healthMemberFilterId ? memberNameById(healthMemberFilterId) : 'All'}</strong>
+              </article>
+            </div>
+
+            <section className="expense-filters health-filters" aria-label="Health filters">
+              <label>
+                Family member
+                <select value={healthMemberFilterId} onChange={(event) => setHealthMemberFilterId(event.target.value)}>
+                  <option value="">Everyone</option>
+                  {(household?.members ?? []).map((member) => (
+                    <option value={member.id} key={member.id}>{member.displayName}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setHealthMemberFilterId('')
+                }}
+              >
+                Reset
+              </button>
+            </section>
+
+            <section className="expense-create-bar health-create-bar" aria-label="Add health data">
+              <div>
+                <h3>Add a blood test</h3>
+                <p>Keep the page clean until you need to enter lab results.</p>
+              </div>
+              <div className="expense-create-actions">
+                <button
+                  type="button"
+                  className={openBloodTestCreator ? 'active' : ''}
+                  onClick={() => setOpenBloodTestCreator(!openBloodTestCreator)}
+                >
+                  {openBloodTestCreator ? 'Close form' : 'Add blood test'}
+                </button>
+              </div>
+            </section>
+
+            {openBloodTestCreator && (
+              <section className="expense-create-panel">
+                <form className="setup-form health-form" onSubmit={addBloodTest}>
+                  <h3>Blood test details</h3>
+                  <label>
+                    Family member
+                    <select value={bloodTestMemberId} onChange={(event) => setBloodTestMemberId(event.target.value)} required>
+                      {(household?.members ?? []).map((member) => (
+                        <option value={member.id} key={member.id}>{member.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Test date
+                    <input type="date" value={bloodTestTestedAt} onChange={(event) => setBloodTestTestedAt(event.target.value)} required />
+                  </label>
+                  <label>
+                    Lab
+                    <input value={bloodTestLabName} onChange={(event) => setBloodTestLabName(event.target.value)} placeholder="Diagnostyka" />
+                  </label>
+                  <label className="health-notes">
+                    Notes
+                    <input value={bloodTestNotes} onChange={(event) => setBloodTestNotes(event.target.value)} placeholder="Fasting, morning test..." />
+                  </label>
+
+                  <div className="marker-form-list">
+                    <div className="marker-form-heading">
+                      <h3>Markers</h3>
+                      <button type="button" onClick={() => setMarkerRows((rows) => [...rows, createMarkerRow()])}>
+                        Add marker
+                      </button>
+                    </div>
+                    {markerRows.map((row) => (
+                      <div className="marker-row" key={row.id}>
+                        <label>
+                          Marker
+                          <input
+                            value={row.markerName}
+                            onChange={(event) => updateMarkerRow(row.id, 'markerName', event.target.value)}
+                            placeholder="TSH"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Value
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={row.value}
+                            onChange={(event) => updateMarkerRow(row.id, 'value', event.target.value)}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Unit
+                          <input
+                            value={row.unit}
+                            onChange={(event) => updateMarkerRow(row.id, 'unit', event.target.value)}
+                            placeholder="mIU/L"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Ref min
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={row.referenceMin}
+                            onChange={(event) => updateMarkerRow(row.id, 'referenceMin', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Ref max
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={row.referenceMax}
+                            onChange={(event) => updateMarkerRow(row.id, 'referenceMax', event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Status
+                          <select value={row.status} onChange={(event) => updateMarkerRow(row.id, 'status', event.target.value)}>
+                            <option value="unknown">Unknown</option>
+                            <option value="normal">Normal</option>
+                            <option value="low">Low</option>
+                            <option value="high">High</option>
+                          </select>
+                        </label>
+                        <label className="marker-note-field">
+                          Marker notes
+                          <input value={row.notes} onChange={(event) => updateMarkerRow(row.id, 'notes', event.target.value)} />
+                        </label>
+                        <button type="button" className="remove-marker" onClick={() => removeMarkerRow(row.id)}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button type="submit" disabled={setupState === 'saving'}>
+                    Save blood test
+                  </button>
+                </form>
+              </section>
+            )}
+
+            <div className="health-lists">
+              <section>
+                <h3>Latest blood tests</h3>
+                <div className="blood-test-list">
+                  {(healthOverview?.latestBloodTests ?? []).length > 0 ? (
+                    healthOverview?.latestBloodTests.map((test) => (
+                      <article className="blood-test-card" key={test.id}>
+                        <div>
+                          <strong>{memberNameById(test.memberId)} · {test.testedAt}</strong>
+                          <small>{test.labName ?? 'Lab not set'}{test.notes ? ` · ${test.notes}` : ''}</small>
+                        </div>
+                        <div className="marker-chip-list">
+                          {test.markers.map((marker) => (
+                            <span className={`marker-chip status-${marker.status}`} key={marker.id}>
+                              {marker.name}: {marker.value.toLocaleString('pl-PL')} {marker.unit}
+                            </span>
+                          ))}
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">No blood tests yet.</p>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h3>Needs attention</h3>
+                <div className="money-list">
+                  {(healthOverview?.outOfRangeMarkers ?? []).length > 0 ? (
+                    healthOverview?.outOfRangeMarkers.map((marker) => (
+                      <article className="health-marker-item" key={marker.id}>
+                        <div>
+                          <strong>{marker.name}</strong>
+                          <small>{memberNameById(marker.memberId)} · {marker.testedAt}</small>
+                        </div>
+                        <b className={`status-pill status-${marker.status}`}>{marker.status}</b>
+                        <span>{marker.value.toLocaleString('pl-PL')} {marker.unit}</span>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">No out-of-range markers recorded.</p>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <section className="marker-history-panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">History</p>
+                  <h2>Marker timeline.</h2>
+                </div>
+                <label>
+                  Marker
+                  <select value={selectedMarkerName} onChange={(event) => setSelectedMarkerName(event.target.value)}>
+                    <option value="">Choose marker</option>
+                    {(healthOverview?.markerNames ?? []).map((markerName) => (
+                      <option value={markerName} key={markerName}>{markerName}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="marker-history-list">
+                {markerHistory.length > 0 ? (
+                  markerHistory.map((marker) => (
+                    <article key={marker.id}>
+                      <span className={`status-dot status-${marker.status}`}></span>
+                      <div>
+                        <strong>{marker.testedAt}</strong>
+                        <small>{memberNameById(marker.memberId)}</small>
+                      </div>
+                      <b>{marker.value.toLocaleString('pl-PL')} {marker.unit}</b>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-state">Choose a marker to see its history.</p>
+                )}
+              </div>
+            </section>
+
+            {setupState === 'error' && <p className="form-error">Could not save health data.</p>}
           </section>
         )}
 

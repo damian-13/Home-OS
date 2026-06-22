@@ -31,6 +31,9 @@ services:
     App\Expenses\Domain\Repository\ExpenseRepository:
         alias: App\Expenses\Infrastructure\Persistence\DoctrineExpenseRepository
 
+    App\Health\Domain\Repository\HealthRepository:
+        alias: App\Health\Infrastructure\Persistence\DoctrineHealthRepository
+
     App\Shared\Application\Command\CommandBus:
         alias: App\Shared\Application\Command\SynchronousCommandBus
 
