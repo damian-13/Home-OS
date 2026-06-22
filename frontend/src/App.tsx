@@ -893,6 +893,29 @@ function App() {
     return healthDocuments.find((document) => document.id === documentId)?.originalName ?? 'Uploaded document'
   }
 
+  const trendMarkers = [...markerHistory].reverse()
+  const latestMarker = markerHistory[0] ?? null
+  const previousMarker = markerHistory[1] ?? null
+  const markerValues = trendMarkers.map((marker) => marker.value)
+  const markerReferenceValues = trendMarkers.flatMap((marker) => [marker.referenceMin, marker.referenceMax]).filter((value): value is number => value !== null)
+  const markerChartValues = [...markerValues, ...markerReferenceValues]
+  const markerChartMin = markerChartValues.length > 0 ? Math.min(...markerChartValues) : 0
+  const markerChartMax = markerChartValues.length > 0 ? Math.max(...markerChartValues) : 0
+  const markerChartPadding = markerChartMax === markerChartMin ? 1 : (markerChartMax - markerChartMin) * 0.15
+  const markerChartFloor = markerChartMin - markerChartPadding
+  const markerChartCeiling = markerChartMax + markerChartPadding
+  const markerChartRange = markerChartCeiling - markerChartFloor || 1
+  const markerChartWidth = 640
+  const markerChartHeight = 220
+  const markerChartX = (index: number) => trendMarkers.length === 1 ? markerChartWidth / 2 : (index / (trendMarkers.length - 1)) * markerChartWidth
+  const markerChartY = (value: number) => markerChartHeight - ((value - markerChartFloor) / markerChartRange) * markerChartHeight
+  const markerChartPoints = trendMarkers.map((marker, index) => `${markerChartX(index)},${markerChartY(marker.value)}`).join(' ')
+  const latestReferenceMin = latestMarker?.referenceMin ?? null
+  const latestReferenceMax = latestMarker?.referenceMax ?? null
+  const referenceMinY = latestReferenceMin === null ? null : markerChartY(latestReferenceMin)
+  const referenceMaxY = latestReferenceMax === null ? null : markerChartY(latestReferenceMax)
+  const markerChange = latestMarker && previousMarker ? latestMarker.value - previousMarker.value : null
+
   const modules = [
     {
       title: 'Home',
@@ -2004,6 +2027,78 @@ function App() {
                   </select>
                 </label>
               </div>
+
+              {markerHistory.length > 0 && (
+                <div className="marker-trend-grid">
+                  <article>
+                    <span>Latest</span>
+                    <strong>{latestMarker?.value.toLocaleString('pl-PL')} {latestMarker?.unit}</strong>
+                    <small>{latestMarker?.testedAt}</small>
+                  </article>
+                  <article>
+                    <span>Change</span>
+                    <strong>
+                      {markerChange === null
+                        ? 'First result'
+                        : `${markerChange > 0 ? '+' : ''}${markerChange.toLocaleString('pl-PL')} ${latestMarker?.unit}`}
+                    </strong>
+                    <small>Compared with previous result</small>
+                  </article>
+                  <article>
+                    <span>Reference</span>
+                    <strong>
+                      {latestReferenceMin !== null && latestReferenceMax !== null
+                        ? `${latestReferenceMin.toLocaleString('pl-PL')} - ${latestReferenceMax.toLocaleString('pl-PL')}`
+                        : 'Not set'}
+                    </strong>
+                    <small>{latestMarker?.status ?? 'unknown'}</small>
+                  </article>
+                </div>
+              )}
+
+              {markerHistory.length > 0 && (
+                <div className="marker-chart" aria-label={`${selectedMarkerName} trend chart`}>
+                  <svg viewBox={`0 0 ${markerChartWidth} ${markerChartHeight}`} role="img">
+                    {referenceMinY !== null && referenceMaxY !== null && (
+                      <rect
+                        x="0"
+                        y={Math.min(referenceMinY, referenceMaxY)}
+                        width={markerChartWidth}
+                        height={Math.abs(referenceMaxY - referenceMinY)}
+                        className="reference-band"
+                      />
+                    )}
+                    {[0, 0.25, 0.5, 0.75, 1].map((step) => (
+                      <line
+                        className="chart-grid-line"
+                        x1="0"
+                        x2={markerChartWidth}
+                        y1={markerChartHeight * step}
+                        y2={markerChartHeight * step}
+                        key={step}
+                      />
+                    ))}
+                    <polyline points={markerChartPoints} className="trend-line" />
+                    {trendMarkers.map((marker, index) => (
+                      <g key={marker.id}>
+                        <circle
+                          cx={markerChartX(index)}
+                          cy={markerChartY(marker.value)}
+                          r="7"
+                          className={`trend-point status-${marker.status}`}
+                        />
+                        <text x={markerChartX(index)} y={markerChartY(marker.value) - 13}>
+                          {marker.value.toLocaleString('pl-PL')}
+                        </text>
+                      </g>
+                    ))}
+                  </svg>
+                  <div className="marker-chart-axis">
+                    <span>{trendMarkers[0]?.testedAt}</span>
+                    <span>{trendMarkers[trendMarkers.length - 1]?.testedAt}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="marker-history-list">
                 {markerHistory.length > 0 ? (

@@ -1295,6 +1295,113 @@ h3 {
   padding: 8px 10px;
 }
 
+.marker-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marker-trend-grid article {
+  display: grid;
+  gap: 6px;
+  min-height: 94px;
+  padding: 13px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.marker-trend-grid article:nth-child(2) {
+  background: #fff7ed;
+}
+
+.marker-trend-grid article:nth-child(3) {
+  background: #ecfff6;
+}
+
+.marker-trend-grid span,
+.marker-trend-grid small {
+  color: #66748a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.marker-trend-grid strong {
+  align-self: end;
+  color: #14213d;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.marker-chart {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.marker-chart svg {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  overflow: visible;
+}
+
+.chart-grid-line {
+  stroke: #e3e9f5;
+  stroke-width: 1;
+}
+
+.reference-band {
+  fill: rgba(24, 166, 122, 0.12);
+}
+
+.trend-line {
+  fill: none;
+  stroke: #2457ff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.trend-point {
+  stroke: #fff;
+  stroke-width: 3;
+}
+
+.trend-point.status-normal {
+  fill: #18a67a;
+}
+
+.trend-point.status-low {
+  fill: #f0a020;
+}
+
+.trend-point.status-high {
+  fill: #e5484d;
+}
+
+.trend-point.status-unknown {
+  fill: #66748a;
+}
+
+.marker-chart text {
+  fill: #14213d;
+  font-size: 18px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.marker-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #66748a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .marker-history-list {
   display: grid;
   gap: 8px;
@@ -1412,7 +1519,8 @@ h3 {
 
   .category-strip,
   .expense-summary-grid,
-  .health-summary-grid {
+  .health-summary-grid,
+  .marker-trend-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1435,6 +1543,7 @@ h3 {
   .category-strip,
   .expense-summary-grid,
   .health-summary-grid,
+  .marker-trend-grid,
   .nav-list {
     grid-template-columns: 1fr;
   }
