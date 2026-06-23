@@ -35,11 +35,14 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
         $monthEnd = $monthStart->modify('last day of this month')->setTime(23, 59, 59);
         $categoryId = $query->categoryId ?: null;
         $paidByMemberId = $query->paidByMemberId ?: null;
+        $trendStart = $monthStart->modify('-11 months');
         $monthExpenses = $this->expenses->expensesBetween($query->householdId, $monthStart, $monthEnd, $categoryId, $paidByMemberId);
+        $trendExpenses = $this->expenses->expensesBetween($query->householdId, $trendStart, $monthEnd);
         $latestExpenses = $this->expenses->latestExpenses($query->householdId, $monthStart, $monthEnd, $categoryId, $paidByMemberId);
         $recurringBills = $this->expenses->recurringBillsForHousehold($query->householdId, $categoryId, $paidByMemberId);
         $incomeSources = $this->expenses->incomeSourcesForHousehold($query->householdId);
         $incomeEntries = $this->expenses->incomeEntriesBetween($query->householdId, $monthStart, $monthEnd);
+        $trendIncomeEntries = $this->expenses->incomeEntriesBetween($query->householdId, $trendStart, $monthEnd);
         $budgets = $this->expenses->budgetsForMonth($query->householdId, $month);
         $payments = $this->expenses->recurringBillPaymentsForMonth($query->householdId, $month);
 
@@ -67,6 +70,39 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
             }
             $categoryTotals[$expense->category()->id()]['amount'] += $expense->amountCents() / 100;
         }
+        $dailyTotals = [];
+        foreach ($monthExpenses as $expense) {
+            $day = $expense->spentOn()->format('Y-m-d');
+            $dailyTotals[$day] ??= ['date' => $day, 'expense' => 0.0, 'income' => 0.0];
+            $dailyTotals[$day]['expense'] += $expense->amountCents() / 100;
+        }
+        foreach ($incomeEntries as $entry) {
+            $day = $entry->receivedOn()->format('Y-m-d');
+            $dailyTotals[$day] ??= ['date' => $day, 'expense' => 0.0, 'income' => 0.0];
+            $dailyTotals[$day]['income'] += $entry->amountCents() / 100;
+        }
+        ksort($dailyTotals);
+        $monthlyTrend = [];
+        for ($cursor = $trendStart; $cursor <= $monthStart; $cursor = $cursor->modify('+1 month')) {
+            $monthKey = $cursor->format('Y-m');
+            $monthlyTrend[$monthKey] = ['month' => $monthKey, 'expense' => 0.0, 'income' => 0.0, 'balance' => 0.0];
+        }
+        foreach ($trendExpenses as $expense) {
+            $monthKey = $expense->spentOn()->format('Y-m');
+            if (isset($monthlyTrend[$monthKey])) {
+                $monthlyTrend[$monthKey]['expense'] += $expense->amountCents() / 100;
+            }
+        }
+        foreach ($trendIncomeEntries as $entry) {
+            $monthKey = $entry->receivedOn()->format('Y-m');
+            if (isset($monthlyTrend[$monthKey])) {
+                $monthlyTrend[$monthKey]['income'] += $entry->amountCents() / 100;
+            }
+        }
+        foreach ($monthlyTrend as &$trendMonth) {
+            $trendMonth['balance'] = $trendMonth['income'] - $trendMonth['expense'];
+        }
+        unset($trendMonth);
         $budgetByCategory = [];
         foreach ($budgets as $budget) {
             $budgetByCategory[$budget->category()->id()] = $budget;
@@ -142,6 +178,8 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
             $billChecklist,
             array_slice($topCategories, 0, 5),
             array_values($memberTotals),
+            array_values($dailyTotals),
+            array_values($monthlyTrend),
             [
                 'month' => $month,
                 'categoryId' => $categoryId,

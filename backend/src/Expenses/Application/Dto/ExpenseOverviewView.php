@@ -15,6 +15,8 @@ final readonly class ExpenseOverviewView
      * @param array{upcoming: list<array<string, mixed>>, paid: list<array<string, mixed>>, overdue: list<array<string, mixed>>, skipped: list<array<string, mixed>>} $billChecklist
      * @param list<array{name: string, color: string, amount: float}> $topCategories
      * @param list<array{memberId: ?string, amount: float}> $memberTotals
+     * @param list<array{date: string, expense: float, income: float}> $dailySpending
+     * @param list<array{month: string, expense: float, income: float, balance: float}> $monthlyTrend
      * @param array{month: string, categoryId: ?string, paidByMemberId: ?string} $activeFilters
      */
     public function __construct(
@@ -38,6 +40,8 @@ final readonly class ExpenseOverviewView
         public array $billChecklist,
         public array $topCategories,
         public array $memberTotals,
+        public array $dailySpending,
+        public array $monthlyTrend,
         public array $activeFilters,
     ) {
     }

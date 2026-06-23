@@ -124,6 +124,8 @@ type ExpenseOverview = {
   }
   topCategories: Array<{ name: string; color: string; amount: number }>
   memberTotals: Array<{ memberId: string | null; amount: number }>
+  dailySpending: Array<{ date: string; expense: number; income: number }>
+  monthlyTrend: Array<{ month: string; expense: number; income: number; balance: number }>
   activeFilters: {
     month: string
     categoryId: string | null
@@ -1243,6 +1245,17 @@ function App() {
   const hasBudgetWarning = (expenseOverview?.budgetUsage ?? []).some((row) => row.overBudget)
   const hasOverdueBills = (expenseOverview?.billChecklist.overdue.length ?? 0) > 0
   const balanceTone = (expenseOverview?.projectedMonthEndBalance ?? 0) < 0 ? 'danger' : 'good'
+  const monthlyTrend = expenseOverview?.monthlyTrend ?? []
+  const dailySpending = expenseOverview?.dailySpending ?? []
+  const maxTrendAmount = Math.max(1, ...monthlyTrend.flatMap((row) => [row.income, row.expense]))
+  const maxDailyAmount = Math.max(1, ...dailySpending.map((row) => row.expense))
+  const dailyChartWidth = 640
+  const dailyChartHeight = 170
+  const dailyChartPoints = dailySpending.map((row, index) => {
+    const x = dailySpending.length === 1 ? dailyChartWidth / 2 : (index / (dailySpending.length - 1)) * dailyChartWidth
+    const y = dailyChartHeight - (row.expense / maxDailyAmount) * dailyChartHeight
+    return `${x},${y}`
+  }).join(' ')
 
   const healthTests = healthOverview?.latestBloodTests ?? []
   const allHealthMarkers = healthTests.flatMap((test) => test.markers)
@@ -1705,6 +1718,76 @@ function App() {
               >
                 Reset
               </button>
+            </section>
+
+            <section className="expense-visual-grid" aria-label="Expense charts">
+              <article className="expense-chart-card">
+                <div>
+                  <p className="eyebrow">Trend</p>
+                  <h3>12-month cashflow</h3>
+                </div>
+                <div className="cashflow-chart">
+                  {monthlyTrend.map((row) => (
+                    <div className="cashflow-month" key={row.month}>
+                      <div className="cashflow-bars">
+                        <span className="income-bar" style={{ height: `${Math.max(4, (row.income / maxTrendAmount) * 100)}%` }} title={`Income ${pln(row.income)}`}></span>
+                        <span className="expense-bar" style={{ height: `${Math.max(4, (row.expense / maxTrendAmount) * 100)}%` }} title={`Expenses ${pln(row.expense)}`}></span>
+                      </div>
+                      <small>{row.month.slice(5)}</small>
+                    </div>
+                  ))}
+                </div>
+                <div className="chart-legend">
+                  <span><b className="legend-income"></b> Income</span>
+                  <span><b className="legend-expense"></b> Expenses</span>
+                </div>
+              </article>
+
+              <article className="expense-chart-card">
+                <div>
+                  <p className="eyebrow">Month rhythm</p>
+                  <h3>Daily spending</h3>
+                </div>
+                {dailySpending.length > 0 ? (
+                  <div className="daily-spending-chart">
+                    <svg viewBox={`0 0 ${dailyChartWidth} ${dailyChartHeight}`} role="img">
+                      {[0, 0.5, 1].map((step) => (
+                        <line key={step} x1="0" x2={dailyChartWidth} y1={dailyChartHeight * step} y2={dailyChartHeight * step} />
+                      ))}
+                      <polyline points={dailyChartPoints} />
+                      {dailySpending.map((row, index) => {
+                        const x = dailySpending.length === 1 ? dailyChartWidth / 2 : (index / (dailySpending.length - 1)) * dailyChartWidth
+                        const y = dailyChartHeight - (row.expense / maxDailyAmount) * dailyChartHeight
+                        return <circle key={row.date} cx={x} cy={y} r="5" />
+                      })}
+                    </svg>
+                    <div className="marker-chart-axis">
+                      <span>{dailySpending[0]?.date}</span>
+                      <span>{dailySpending[dailySpending.length - 1]?.date}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="empty-state">No daily spending in this month.</p>
+                )}
+              </article>
+
+              <article className="expense-chart-card category-bars-card">
+                <div>
+                  <p className="eyebrow">Categories</p>
+                  <h3>Where money goes</h3>
+                </div>
+                <div className="category-bar-list">
+                  {(expenseOverview?.topCategories ?? []).map((category) => {
+                    const maxCategory = Math.max(1, ...(expenseOverview?.topCategories ?? []).map((row) => row.amount))
+                    return (
+                      <div key={category.name}>
+                        <div><strong>{category.name}</strong><span>{pln(category.amount)}</span></div>
+                        <p><span style={{ width: `${(category.amount / maxCategory) * 100}%`, background: category.color }}></span></p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </article>
             </section>
 
             <section className="money-management-grid" aria-label="Monthly money control">
