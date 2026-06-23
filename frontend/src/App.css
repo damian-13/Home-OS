@@ -639,6 +639,24 @@ h3 {
   gap: 8px;
 }
 
+.daily-chart-body {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.daily-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 0;
+  color: #66748a;
+  font-size: 11px;
+  font-weight: 850;
+  text-align: right;
+}
+
 .daily-spending-chart svg {
   width: 100%;
   min-height: 190px;
@@ -979,6 +997,7 @@ h3 {
   padding: 13px;
   border-radius: 8px;
   background: #f7f9ff;
+  min-width: 0;
 }
 
 .money-item.editable {
@@ -994,6 +1013,14 @@ h3 {
 .money-item strong,
 .money-item small {
   display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.money-item strong {
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .money-item-main {

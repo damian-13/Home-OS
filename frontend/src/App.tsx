@@ -1251,6 +1251,7 @@ function App() {
   const maxDailyAmount = Math.max(1, ...dailySpending.map((row) => row.expense))
   const dailyChartWidth = 640
   const dailyChartHeight = 170
+  const dailyYAxisTicks = [maxDailyAmount, maxDailyAmount / 2, 0]
   const dailyChartPoints = dailySpending.map((row, index) => {
     const x = dailySpending.length === 1 ? dailyChartWidth / 2 : (index / (dailySpending.length - 1)) * dailyChartWidth
     const y = dailyChartHeight - (row.expense / maxDailyAmount) * dailyChartHeight
@@ -1750,17 +1751,24 @@ function App() {
                 </div>
                 {dailySpending.length > 0 ? (
                   <div className="daily-spending-chart">
-                    <svg viewBox={`0 0 ${dailyChartWidth} ${dailyChartHeight}`} role="img">
-                      {[0, 0.5, 1].map((step) => (
-                        <line key={step} x1="0" x2={dailyChartWidth} y1={dailyChartHeight * step} y2={dailyChartHeight * step} />
-                      ))}
-                      <polyline points={dailyChartPoints} />
-                      {dailySpending.map((row, index) => {
-                        const x = dailySpending.length === 1 ? dailyChartWidth / 2 : (index / (dailySpending.length - 1)) * dailyChartWidth
-                        const y = dailyChartHeight - (row.expense / maxDailyAmount) * dailyChartHeight
-                        return <circle key={row.date} cx={x} cy={y} r="5" />
-                      })}
-                    </svg>
+                    <div className="daily-chart-body">
+                      <div className="daily-y-axis" aria-hidden="true">
+                        {dailyYAxisTicks.map((tick) => (
+                          <span key={tick}>{pln(tick)}</span>
+                        ))}
+                      </div>
+                      <svg viewBox={`0 0 ${dailyChartWidth} ${dailyChartHeight}`} role="img">
+                        {[0, 0.5, 1].map((step) => (
+                          <line key={step} x1="0" x2={dailyChartWidth} y1={dailyChartHeight * step} y2={dailyChartHeight * step} />
+                        ))}
+                        <polyline points={dailyChartPoints} />
+                        {dailySpending.map((row, index) => {
+                          const x = dailySpending.length === 1 ? dailyChartWidth / 2 : (index / (dailySpending.length - 1)) * dailyChartWidth
+                          const y = dailyChartHeight - (row.expense / maxDailyAmount) * dailyChartHeight
+                          return <circle key={row.date} cx={x} cy={y} r="5" />
+                        })}
+                      </svg>
+                    </div>
                     <div className="marker-chart-axis">
                       <span>{dailySpending[0]?.date}</span>
                       <span>{dailySpending[dailySpending.length - 1]?.date}</span>
