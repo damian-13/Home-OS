@@ -504,6 +504,161 @@ h3 {
   gap: 12px;
 }
 
+.money-control-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.money-control-grid article,
+.money-control-panel {
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.money-control-grid article {
+  display: grid;
+  gap: 6px;
+  min-height: 118px;
+  padding: 15px;
+}
+
+.money-control-grid article.good {
+  background: linear-gradient(135deg, #f4fff9, #ffffff);
+}
+
+.money-control-grid article.danger {
+  border-color: #ffc0c7;
+  background: linear-gradient(135deg, #fff1f3, #ffffff);
+}
+
+.money-control-grid span,
+.money-control-grid small {
+  color: #66748a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.money-control-grid strong {
+  color: #132033;
+  font-size: 21px;
+}
+
+.money-management-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 14px;
+}
+
+.money-control-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.panel-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-heading-row button,
+.money-item > button {
+  min-height: 34px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #2142d8;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 11px;
+}
+
+.money-mini-form,
+.budget-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.budget-edit-grid {
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+}
+
+.budget-list,
+.bill-checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.budget-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.8fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.budget-list article.over-budget {
+  background: #fff1f3;
+}
+
+.budget-list small {
+  display: block;
+  color: #66748a;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.budget-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef8;
+}
+
+.budget-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.bill-checklist article {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.bill-checklist article.overdue {
+  background: #fff1f3;
+}
+
+.bill-checklist article > span {
+  width: 12px;
+  height: 36px;
+  border-radius: 999px;
+}
+
+.bill-checklist small {
+  display: block;
+  color: #66748a;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
 .expense-summary-grid article {
   display: grid;
   gap: 8px;
@@ -1621,6 +1776,7 @@ h3 {
 
   .expenses-workspace,
   .expense-lists,
+  .money-management-grid,
   .health-lists,
   .health-insight-grid,
   .placeholder-grid,
@@ -1652,9 +1808,16 @@ h3 {
 
   .category-strip,
   .expense-summary-grid,
+  .money-control-grid,
   .health-summary-grid,
   .marker-trend-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .money-mini-form,
+  .budget-edit-grid,
+  .bill-checklist article {
+    grid-template-columns: 1fr;
   }
 
   .marker-note-field {
@@ -1675,6 +1838,7 @@ h3 {
   .module-grid,
   .category-strip,
   .expense-summary-grid,
+  .money-control-grid,
   .health-summary-grid,
   .marker-trend-grid,
   .nav-list {

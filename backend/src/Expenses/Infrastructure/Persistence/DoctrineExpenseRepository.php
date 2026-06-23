@@ -3,8 +3,12 @@
 namespace App\Expenses\Infrastructure\Persistence;
 
 use App\Expenses\Domain\Model\Expense;
+use App\Expenses\Domain\Model\ExpenseBudget;
 use App\Expenses\Domain\Model\ExpenseCategory;
+use App\Expenses\Domain\Model\IncomeEntry;
+use App\Expenses\Domain\Model\IncomeSource;
 use App\Expenses\Domain\Model\RecurringBill;
+use App\Expenses\Domain\Model\RecurringBillPayment;
 use App\Expenses\Domain\Repository\ExpenseRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -32,6 +36,30 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
     public function saveRecurringBill(RecurringBill $bill): void
     {
         $this->entityManager->persist($bill);
+        $this->entityManager->flush();
+    }
+
+    public function saveIncomeSource(IncomeSource $source): void
+    {
+        $this->entityManager->persist($source);
+        $this->entityManager->flush();
+    }
+
+    public function saveIncomeEntry(IncomeEntry $entry): void
+    {
+        $this->entityManager->persist($entry);
+        $this->entityManager->flush();
+    }
+
+    public function saveBudget(ExpenseBudget $budget): void
+    {
+        $this->entityManager->persist($budget);
+        $this->entityManager->flush();
+    }
+
+    public function saveRecurringBillPayment(RecurringBillPayment $payment): void
+    {
+        $this->entityManager->persist($payment);
         $this->entityManager->flush();
     }
 
@@ -77,6 +105,60 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
         }
 
         return $bill;
+    }
+
+    public function getIncomeSource(string $householdId, string $sourceId): IncomeSource
+    {
+        $source = $this->entityManager->getRepository(IncomeSource::class)->findOneBy([
+            'id' => $sourceId,
+            'householdId' => $householdId,
+            'deletedAt' => null,
+        ]);
+
+        if (!$source instanceof IncomeSource) {
+            throw new NotFoundHttpException(sprintf('Income source "%s" was not found.', $sourceId));
+        }
+
+        return $source;
+    }
+
+    public function getIncomeEntry(string $householdId, string $entryId): IncomeEntry
+    {
+        $entry = $this->entityManager->getRepository(IncomeEntry::class)->findOneBy([
+            'id' => $entryId,
+            'householdId' => $householdId,
+            'deletedAt' => null,
+        ]);
+
+        if (!$entry instanceof IncomeEntry) {
+            throw new NotFoundHttpException(sprintf('Income entry "%s" was not found.', $entryId));
+        }
+
+        return $entry;
+    }
+
+    public function findBudget(string $householdId, string $categoryId, string $month): ?ExpenseBudget
+    {
+        return $this->entityManager->getRepository(ExpenseBudget::class)
+            ->createQueryBuilder('budget')
+            ->join('budget.category', 'category')
+            ->andWhere('budget.householdId = :householdId')
+            ->andWhere('category.id = :categoryId')
+            ->andWhere('budget.month = :month')
+            ->setParameter('householdId', $householdId)
+            ->setParameter('categoryId', $categoryId)
+            ->setParameter('month', $month)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    public function findRecurringBillPayment(string $householdId, string $billId, string $month): ?RecurringBillPayment
+    {
+        return $this->entityManager->getRepository(RecurringBillPayment::class)->findOneBy([
+            'householdId' => $householdId,
+            'billId' => $billId,
+            'month' => $month,
+        ]);
     }
 
     public function categoriesForHousehold(string $householdId): array
@@ -157,6 +239,52 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
         }
 
         return $builder->getQuery()->getResult();
+    }
+
+    public function incomeSourcesForHousehold(string $householdId): array
+    {
+        return $this->entityManager->getRepository(IncomeSource::class)
+            ->createQueryBuilder('source')
+            ->andWhere('source.householdId = :householdId')
+            ->andWhere('source.deletedAt IS NULL')
+            ->setParameter('householdId', $householdId)
+            ->orderBy('source.active', 'DESC')
+            ->addOrderBy('source.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function incomeEntriesBetween(string $householdId, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        return $this->entityManager->getRepository(IncomeEntry::class)
+            ->createQueryBuilder('entry')
+            ->andWhere('entry.householdId = :householdId')
+            ->andWhere('entry.deletedAt IS NULL')
+            ->andWhere('entry.receivedOn >= :from')
+            ->andWhere('entry.receivedOn <= :to')
+            ->setParameter('householdId', $householdId)
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->orderBy('entry.receivedOn', 'DESC')
+            ->addOrderBy('entry.id', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function budgetsForMonth(string $householdId, string $month): array
+    {
+        return $this->entityManager->getRepository(ExpenseBudget::class)->findBy([
+            'householdId' => $householdId,
+            'month' => $month,
+        ]);
+    }
+
+    public function recurringBillPaymentsForMonth(string $householdId, string $month): array
+    {
+        return $this->entityManager->getRepository(RecurringBillPayment::class)->findBy([
+            'householdId' => $householdId,
+            'month' => $month,
+        ]);
     }
 
     private function applyOptionalFilters(\Doctrine\ORM\QueryBuilder $builder, ?string $categoryId, ?string $paidByMemberId): void

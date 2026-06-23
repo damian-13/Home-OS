@@ -65,6 +65,32 @@ type RecurringBill = {
   paidByMemberId: string | null
 }
 
+type IncomeSource = {
+  id: string
+  memberId: string | null
+  name: string
+  amount: number
+  currency: string
+  active: boolean
+}
+
+type IncomeEntry = {
+  id: string
+  sourceId: string | null
+  memberId: string | null
+  description: string
+  amount: number
+  currency: string
+  receivedOn: string
+}
+
+type BillChecklistItem = {
+  bill: RecurringBill
+  status: 'planned' | 'paid' | 'skipped'
+  amount: number
+  paidOn: string | null
+}
+
 type ExpenseOverview = {
   currency: string
   monthTotal: number
@@ -73,6 +99,31 @@ type ExpenseOverview = {
   latestExpenses: ExpenseItem[]
   recurringBills: RecurringBill[]
   byCategory: Array<{ name: string; color: string; amount: number }>
+  expectedIncome: number
+  actualIncome: number
+  spentTotal: number
+  recurringPlannedTotal: number
+  paidBillsTotal: number
+  remainingMonthlyMoney: number
+  projectedMonthEndBalance: number
+  incomeSources: IncomeSource[]
+  incomeEntries: IncomeEntry[]
+  budgetUsage: Array<{
+    category: ExpenseCategory
+    budget: number
+    spent: number
+    remaining: number
+    percent: number
+    overBudget: boolean
+  }>
+  billChecklist: {
+    upcoming: BillChecklistItem[]
+    paid: BillChecklistItem[]
+    overdue: BillChecklistItem[]
+    skipped: BillChecklistItem[]
+  }
+  topCategories: Array<{ name: string; color: string; amount: number }>
+  memberTotals: Array<{ memberId: string | null; amount: number }>
   activeFilters: {
     month: string
     categoryId: string | null
@@ -282,6 +333,16 @@ function App() {
   const [editBillCategoryId, setEditBillCategoryId] = useState('')
   const [editBillPaidByMemberId, setEditBillPaidByMemberId] = useState('')
   const [editBillDueDay, setEditBillDueDay] = useState('10')
+  const [openMoneyPanel, setOpenMoneyPanel] = useState<'income-source' | 'income-entry' | 'budgets' | null>(null)
+  const [incomeSourceName, setIncomeSourceName] = useState('')
+  const [incomeSourceAmount, setIncomeSourceAmount] = useState('')
+  const [incomeSourceMemberId, setIncomeSourceMemberId] = useState('')
+  const [incomeEntryDescription, setIncomeEntryDescription] = useState('')
+  const [incomeEntryAmount, setIncomeEntryAmount] = useState('')
+  const [incomeEntryMemberId, setIncomeEntryMemberId] = useState('')
+  const [incomeEntrySourceId, setIncomeEntrySourceId] = useState('')
+  const [incomeEntryReceivedOn, setIncomeEntryReceivedOn] = useState(today)
+  const [budgetDrafts, setBudgetDrafts] = useState<Record<string, string>>({})
   const [healthMemberFilterId, setHealthMemberFilterId] = useState('')
   const [openBloodTestCreator, setOpenBloodTestCreator] = useState(false)
   const [bloodTestMemberId, setBloodTestMemberId] = useState('')
@@ -435,6 +496,7 @@ function App() {
 
     const overview = await apiJson<ExpenseOverview>(`/api/households/${householdId}/expenses/overview?${params.toString()}`)
     setExpenseOverview(overview)
+    setBudgetDrafts(Object.fromEntries(overview.budgetUsage.map((row) => [row.category.id, row.budget ? String(row.budget) : ''])))
 
     if (!expenseCategoryId && overview.categories[0]) {
       setExpenseCategoryId(overview.categories[0].id)
@@ -709,6 +771,117 @@ function App() {
       await apiNoContent(`/api/households/${household.id}/expenses/recurring-bills/${billId}`, { method: 'DELETE' })
       await loadExpenseOverview(household.id)
       setEditingBillId((current) => (current === billId ? null : current))
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const addIncomeSource = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/income-sources`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: incomeSourceName,
+          amount: Number(incomeSourceAmount),
+          memberId: incomeSourceMemberId || null,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setIncomeSourceName('')
+      setIncomeSourceAmount('')
+      setOpenMoneyPanel(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteIncomeSource = async (sourceId: string) => {
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiNoContent(`/api/households/${household.id}/expenses/income-sources/${sourceId}`, { method: 'DELETE' })
+      await loadExpenseOverview(household.id)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const addIncomeEntry = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/income-entries`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sourceId: incomeEntrySourceId || null,
+          memberId: incomeEntryMemberId || null,
+          description: incomeEntryDescription,
+          amount: Number(incomeEntryAmount),
+          receivedOn: incomeEntryReceivedOn,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setIncomeEntryDescription('')
+      setIncomeEntryAmount('')
+      setIncomeEntryReceivedOn(today)
+      setOpenMoneyPanel(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteIncomeEntry = async (entryId: string) => {
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiNoContent(`/api/households/${household.id}/expenses/income-entries/${entryId}`, { method: 'DELETE' })
+      await loadExpenseOverview(household.id)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const saveBudgets = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ month: string }>(`/api/households/${household.id}/expenses/budgets/${expenseFilterMonth}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          budgets: Object.entries(budgetDrafts).map(([categoryId, amount]) => ({ categoryId, amount: amount === '' ? 0 : Number(amount) })),
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setOpenMoneyPanel(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const updateBillPayment = async (billId: string, status: 'planned' | 'paid' | 'skipped', amount?: number) => {
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/recurring-bills/${billId}/payments/${expenseFilterMonth}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status,
+          paidOn: status === 'paid' ? today : null,
+          amount: amount ?? null,
+        }),
+      })
+      await loadExpenseOverview(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -1059,6 +1232,17 @@ function App() {
 
     return healthDocuments.find((document) => document.id === documentId)?.originalName ?? 'Uploaded document'
   }
+
+  const pln = (amount: number) => `${amount.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} PLN`
+  const billChecklistItems = [
+    ...(expenseOverview?.billChecklist.overdue ?? []),
+    ...(expenseOverview?.billChecklist.upcoming ?? []),
+    ...(expenseOverview?.billChecklist.paid ?? []),
+    ...(expenseOverview?.billChecklist.skipped ?? []),
+  ]
+  const hasBudgetWarning = (expenseOverview?.budgetUsage ?? []).some((row) => row.overBudget)
+  const hasOverdueBills = (expenseOverview?.billChecklist.overdue.length ?? 0) > 0
+  const balanceTone = (expenseOverview?.projectedMonthEndBalance ?? 0) < 0 ? 'danger' : 'good'
 
   const healthTests = healthOverview?.latestBloodTests ?? []
   const allHealthMarkers = healthTests.flatMap((test) => test.markers)
@@ -1456,22 +1640,35 @@ function App() {
               </div>
               <div className="expense-total">
                 <span>This month</span>
-                <strong>{(expenseOverview?.monthTotal ?? 0).toLocaleString('pl-PL')} PLN</strong>
+                <strong>{pln(expenseOverview?.monthTotal ?? 0)}</strong>
               </div>
             </div>
 
-            <div className="expense-summary-grid">
-              <article>
-                <span>Recurring monthly</span>
-                <strong>{(expenseOverview?.recurringMonthlyTotal ?? 0).toLocaleString('pl-PL')} PLN</strong>
+            <div className="money-control-grid">
+              <article className="good">
+                <span>Income</span>
+                <strong>{pln(expenseOverview?.actualIncome || expenseOverview?.expectedIncome || 0)}</strong>
+                <small>{pln(expenseOverview?.expectedIncome ?? 0)} expected</small>
               </article>
-              <article>
-                <span>Categories</span>
-                <strong>{expenseOverview?.categories.length ?? 0}</strong>
+              <article className={hasBudgetWarning ? 'danger' : ''}>
+                <span>Spent</span>
+                <strong>{pln(expenseOverview?.spentTotal ?? 0)}</strong>
+                <small>{hasBudgetWarning ? 'Budget warning' : 'Inside budget'}</small>
               </article>
-              <article>
-                <span>Latest entries</span>
-                <strong>{expenseOverview?.latestExpenses.length ?? 0}</strong>
+              <article className={hasOverdueBills ? 'danger' : ''}>
+                <span>Planned bills</span>
+                <strong>{pln(expenseOverview?.recurringPlannedTotal ?? 0)}</strong>
+                <small>{hasOverdueBills ? `${expenseOverview?.billChecklist.overdue.length ?? 0} overdue` : `${expenseOverview?.billChecklist.upcoming.length ?? 0} upcoming`}</small>
+              </article>
+              <article className={balanceTone}>
+                <span>Remaining</span>
+                <strong>{pln(expenseOverview?.remainingMonthlyMoney ?? 0)}</strong>
+                <small>After spending and planned bills</small>
+              </article>
+              <article className={balanceTone}>
+                <span>Projected balance</span>
+                <strong>{pln(expenseOverview?.projectedMonthEndBalance ?? 0)}</strong>
+                <small>Month-end estimate</small>
               </article>
             </div>
 
@@ -1508,6 +1705,113 @@ function App() {
               >
                 Reset
               </button>
+            </section>
+
+            <section className="money-management-grid" aria-label="Monthly money control">
+              <section className="money-control-panel">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="eyebrow">Income</p>
+                    <h3>Monthly income</h3>
+                  </div>
+                  <div className="row-actions">
+                    <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'income-source' ? null : 'income-source')}>
+                      Add recurring
+                    </button>
+                    <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'income-entry' ? null : 'income-entry')}>
+                      Add one-time
+                    </button>
+                  </div>
+                </div>
+                {openMoneyPanel === 'income-source' && (
+                  <form className="setup-form money-mini-form" onSubmit={addIncomeSource}>
+                    <label>Name<input value={incomeSourceName} onChange={(event) => setIncomeSourceName(event.target.value)} required /></label>
+                    <label>Amount PLN<input type="number" min="0.01" step="0.01" value={incomeSourceAmount} onChange={(event) => setIncomeSourceAmount(event.target.value)} required /></label>
+                    <label>Member<select value={incomeSourceMemberId} onChange={(event) => setIncomeSourceMemberId(event.target.value)}><option value="">Household</option>{(household?.members ?? []).map((member) => <option value={member.id} key={member.id}>{member.displayName}</option>)}</select></label>
+                    <button type="submit" disabled={setupState === 'saving'}>Save income</button>
+                  </form>
+                )}
+                {openMoneyPanel === 'income-entry' && (
+                  <form className="setup-form money-mini-form" onSubmit={addIncomeEntry}>
+                    <label>Description<input value={incomeEntryDescription} onChange={(event) => setIncomeEntryDescription(event.target.value)} required /></label>
+                    <label>Amount PLN<input type="number" min="0.01" step="0.01" value={incomeEntryAmount} onChange={(event) => setIncomeEntryAmount(event.target.value)} required /></label>
+                    <label>Source<select value={incomeEntrySourceId} onChange={(event) => setIncomeEntrySourceId(event.target.value)}><option value="">One-time</option>{(expenseOverview?.incomeSources ?? []).map((source) => <option value={source.id} key={source.id}>{source.name}</option>)}</select></label>
+                    <label>Member<select value={incomeEntryMemberId} onChange={(event) => setIncomeEntryMemberId(event.target.value)}><option value="">Household</option>{(household?.members ?? []).map((member) => <option value={member.id} key={member.id}>{member.displayName}</option>)}</select></label>
+                    <label>Date<input type="date" value={incomeEntryReceivedOn} onChange={(event) => setIncomeEntryReceivedOn(event.target.value)} required /></label>
+                    <button type="submit" disabled={setupState === 'saving'}>Save entry</button>
+                  </form>
+                )}
+                <div className="money-list compact">
+                  {(expenseOverview?.incomeSources ?? []).map((source) => (
+                    <article className="money-item" key={source.id}>
+                      <span style={{ background: '#18a67a' }}></span>
+                      <div><strong>{source.name}</strong><small>{memberNameById(source.memberId)} · recurring</small></div>
+                      <b>{pln(source.amount)}</b>
+                      <button type="button" onClick={() => deleteIncomeSource(source.id)}>Delete</button>
+                    </article>
+                  ))}
+                  {(expenseOverview?.incomeEntries ?? []).map((entry) => (
+                    <article className="money-item" key={entry.id}>
+                      <span style={{ background: '#0f766e' }}></span>
+                      <div><strong>{entry.description}</strong><small>{memberNameById(entry.memberId)} · {entry.receivedOn}</small></div>
+                      <b>{pln(entry.amount)}</b>
+                      <button type="button" onClick={() => deleteIncomeEntry(entry.id)}>Delete</button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="money-control-panel">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="eyebrow">Budgets</p>
+                    <h3>Category limits</h3>
+                  </div>
+                  <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'budgets' ? null : 'budgets')}>
+                    {openMoneyPanel === 'budgets' ? 'Close budgets' : 'Edit budgets'}
+                  </button>
+                </div>
+                {openMoneyPanel === 'budgets' && (
+                  <form className="budget-edit-grid" onSubmit={saveBudgets}>
+                    {(expenseOverview?.budgetUsage ?? []).map((row) => (
+                      <label key={row.category.id}>{row.category.name}<input type="number" min="0" step="0.01" value={budgetDrafts[row.category.id] ?? ''} onChange={(event) => setBudgetDrafts((drafts) => ({ ...drafts, [row.category.id]: event.target.value }))} /></label>
+                    ))}
+                    <button type="submit" disabled={setupState === 'saving'}>Save budgets</button>
+                  </form>
+                )}
+                <div className="budget-list">
+                  {(expenseOverview?.budgetUsage ?? []).map((row) => (
+                    <article className={row.overBudget ? 'over-budget' : ''} key={row.category.id}>
+                      <div><strong>{row.category.name}</strong><small>{pln(row.spent)} of {pln(row.budget)}</small></div>
+                      <div className="budget-bar"><span style={{ width: `${Math.min(100, row.percent)}%`, background: row.category.color }}></span></div>
+                      <b>{pln(row.remaining)}</b>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </section>
+
+            <section className="money-control-panel">
+              <div className="panel-heading-row">
+                <div>
+                  <p className="eyebrow">Bills</p>
+                  <h3>Monthly checklist</h3>
+                </div>
+              </div>
+              <div className="bill-checklist">
+                {billChecklistItems.length > 0 ? billChecklistItems.map((item) => (
+                  <article className={`bill-status-${item.status} ${expenseOverview?.billChecklist.overdue.some((overdue) => overdue.bill.id === item.bill.id) ? 'overdue' : ''}`} key={`${item.bill.id}-${item.status}`}>
+                    <span style={{ background: item.bill.category.color }}></span>
+                    <div><strong>{item.bill.name}</strong><small>{item.bill.category.name} · due day {item.bill.dueDay} · {memberNameById(item.bill.paidByMemberId)}</small></div>
+                    <b>{pln(item.amount)}</b>
+                    <div className="row-actions">
+                      <button type="button" onClick={() => updateBillPayment(item.bill.id, 'paid', item.amount)}>Mark paid</button>
+                      <button type="button" onClick={() => updateBillPayment(item.bill.id, 'skipped', item.amount)}>Skip</button>
+                      <button type="button" onClick={() => updateBillPayment(item.bill.id, 'planned', item.amount)}>Plan</button>
+                    </div>
+                  </article>
+                )) : <p className="empty-state">No recurring bills yet.</p>}
+              </div>
             </section>
 
             <section className="expense-create-bar" aria-label="Add expense data">
