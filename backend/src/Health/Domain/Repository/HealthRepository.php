@@ -12,6 +12,8 @@ interface HealthRepository
 
     public function saveDocument(HealthDocument $document): void;
 
+    public function bloodTestById(string $householdId, string $bloodTestId): ?BloodTest;
+
     /**
      * @return list<HealthDocument>
      */

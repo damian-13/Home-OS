@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, type SetStateAction, useEffect, useState } from 'react'
 import './App.css'
 
 type Dashboard = {
@@ -110,6 +110,16 @@ type HealthOverview = {
   latestBloodTests: BloodTest[]
   outOfRangeMarkers: BloodTestMarker[]
   markerNames: string[]
+  markerCatalog: MarkerCatalogItem[]
+}
+
+type MarkerCatalogItem = {
+  name: string
+  aliases: string[]
+  unit: string
+  referenceMin: number | null
+  referenceMax: number | null
+  category: string
 }
 
 type HealthDocument = {
@@ -142,6 +152,7 @@ type DocumentExtraction = {
 
 type MarkerFormRow = {
   id: string
+  selected: boolean
   markerName: string
   value: string
   unit: string
@@ -171,6 +182,7 @@ const today = new Date().toISOString().slice(0, 10)
 const currentMonth = today.slice(0, 7)
 const createMarkerRow = (): MarkerFormRow => ({
   id: crypto.randomUUID(),
+  selected: true,
   markerName: '',
   value: '',
   unit: '',
@@ -277,6 +289,12 @@ function App() {
   const [bloodTestLabName, setBloodTestLabName] = useState('')
   const [bloodTestNotes, setBloodTestNotes] = useState('')
   const [markerRows, setMarkerRows] = useState<MarkerFormRow[]>([createMarkerRow()])
+  const [editingBloodTestId, setEditingBloodTestId] = useState<string | null>(null)
+  const [editBloodTestMemberId, setEditBloodTestMemberId] = useState('')
+  const [editBloodTestTestedAt, setEditBloodTestTestedAt] = useState(today)
+  const [editBloodTestLabName, setEditBloodTestLabName] = useState('')
+  const [editBloodTestNotes, setEditBloodTestNotes] = useState('')
+  const [editMarkerRows, setEditMarkerRows] = useState<MarkerFormRow[]>([createMarkerRow()])
   const [selectedMarkerName, setSelectedMarkerName] = useState('')
   const [markerHistory, setMarkerHistory] = useState<BloodTestMarker[]>([])
   const [documentMemberId, setDocumentMemberId] = useState('')
@@ -697,12 +715,58 @@ function App() {
     }
   }
 
-  const updateMarkerRow = (rowId: string, field: keyof MarkerFormRow, value: string) => {
-    setMarkerRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
+  const findMarkerCatalogItem = (name: string) => {
+    const normalized = name.trim().toLocaleLowerCase('pl-PL')
+
+    return healthOverview?.markerCatalog.find((marker) => (
+      marker.name.toLocaleLowerCase('pl-PL') === normalized
+      || marker.aliases.some((alias) => alias.toLocaleLowerCase('pl-PL') === normalized)
+    )) ?? null
   }
 
-  const updateImportMarkerRow = (rowId: string, field: keyof MarkerFormRow, value: string) => {
-    setImportMarkerRows((rows) => rows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)))
+  const applyMarkerCatalog = (row: MarkerFormRow) => {
+    const catalogItem = findMarkerCatalogItem(row.markerName)
+
+    if (!catalogItem) {
+      return row
+    }
+
+    return {
+      ...row,
+      markerName: catalogItem.name,
+      unit: row.unit || catalogItem.unit,
+      referenceMin: row.referenceMin || (catalogItem.referenceMin === null ? '' : String(catalogItem.referenceMin)),
+      referenceMax: row.referenceMax || (catalogItem.referenceMax === null ? '' : String(catalogItem.referenceMax)),
+    }
+  }
+
+  const updateRows = (
+    setter: (value: SetStateAction<MarkerFormRow[]>) => void,
+    rowId: string,
+    field: keyof MarkerFormRow,
+    value: string | boolean,
+  ) => {
+    setter((rows) => rows.map((row) => {
+      if (row.id !== rowId) {
+        return row
+      }
+
+      const nextRow = { ...row, [field]: value }
+
+      return field === 'markerName' ? applyMarkerCatalog(nextRow) : nextRow
+    }))
+  }
+
+  const updateMarkerRow = (rowId: string, field: keyof MarkerFormRow, value: string | boolean) => {
+    updateRows(setMarkerRows, rowId, field, value)
+  }
+
+  const updateImportMarkerRow = (rowId: string, field: keyof MarkerFormRow, value: string | boolean) => {
+    updateRows(setImportMarkerRows, rowId, field, value)
+  }
+
+  const updateEditMarkerRow = (rowId: string, field: keyof MarkerFormRow, value: string | boolean) => {
+    updateRows(setEditMarkerRows, rowId, field, value)
   }
 
   const removeMarkerRow = (rowId: string) => {
@@ -711,6 +775,65 @@ function App() {
 
   const removeImportMarkerRow = (rowId: string) => {
     setImportMarkerRows((rows) => (rows.length === 1 ? rows : rows.filter((row) => row.id !== rowId)))
+  }
+
+  const removeEditMarkerRow = (rowId: string) => {
+    setEditMarkerRows((rows) => (rows.length === 1 ? rows : rows.filter((row) => row.id !== rowId)))
+  }
+
+  const markerPayload = (rows: MarkerFormRow[]) => rows
+    .filter((row) => row.selected)
+    .map((row) => ({
+      markerName: row.markerName,
+      value: Number(row.value),
+      unit: row.unit,
+      referenceMin: row.referenceMin ? Number(row.referenceMin) : null,
+      referenceMax: row.referenceMax ? Number(row.referenceMax) : null,
+      status: row.status,
+      notes: row.notes || null,
+    }))
+
+  const markerWarnings = (row: MarkerFormRow) => {
+    const warnings: string[] = []
+
+    if (!row.unit.trim()) {
+      warnings.push('missing unit')
+    }
+
+    if (row.referenceMin && row.referenceMax && Number(row.referenceMin) > Number(row.referenceMax)) {
+      warnings.push('range reversed')
+    }
+
+    if (!findMarkerCatalogItem(row.markerName)) {
+      warnings.push('new marker name')
+    }
+
+    if (row.status === 'low' || row.status === 'high') {
+      warnings.push(row.status)
+    }
+
+    return warnings
+  }
+
+  const bloodTestToRows = (test: BloodTest): MarkerFormRow[] => test.markers.map((marker) => ({
+    id: crypto.randomUUID(),
+    selected: true,
+    markerName: marker.name,
+    value: String(marker.value),
+    unit: marker.unit,
+    referenceMin: marker.referenceMin === null ? '' : String(marker.referenceMin),
+    referenceMax: marker.referenceMax === null ? '' : String(marker.referenceMax),
+    status: marker.status,
+    notes: marker.notes ?? '',
+  }))
+
+  const startEditBloodTest = (test: BloodTest) => {
+    setEditingBloodTestId(test.id)
+    setEditBloodTestMemberId(test.memberId)
+    setEditBloodTestTestedAt(test.testedAt)
+    setEditBloodTestLabName(test.labName ?? '')
+    setEditBloodTestNotes(test.notes ?? '')
+    setEditMarkerRows(bloodTestToRows(test))
   }
 
   const startDocumentImport = (document: HealthDocument) => {
@@ -743,15 +866,7 @@ function App() {
           testedAt: bloodTestTestedAt,
           labName: bloodTestLabName || null,
           notes: bloodTestNotes || null,
-          markers: markerRows.map((row) => ({
-            markerName: row.markerName,
-            value: Number(row.value),
-            unit: row.unit,
-            referenceMin: row.referenceMin ? Number(row.referenceMin) : null,
-            referenceMax: row.referenceMax ? Number(row.referenceMax) : null,
-            status: row.status,
-            notes: row.notes || null,
-          })),
+          markers: markerPayload(markerRows),
         }),
       })
       await loadHealthOverview(household.id)
@@ -784,15 +899,7 @@ function App() {
           labName: importLabName || null,
           notes: importNotes || null,
           sourceDocumentId: importDocument.id,
-          markers: importMarkerRows.map((row) => ({
-            markerName: row.markerName,
-            value: Number(row.value),
-            unit: row.unit,
-            referenceMin: row.referenceMin ? Number(row.referenceMin) : null,
-            referenceMax: row.referenceMax ? Number(row.referenceMax) : null,
-            status: row.status,
-            notes: row.notes || null,
-          })),
+          markers: markerPayload(importMarkerRows),
         }),
       })
       await loadHealthOverview(household.id)
@@ -833,6 +940,7 @@ function App() {
       if (extraction.markers.length > 0) {
         setImportMarkerRows(extraction.markers.map((marker) => ({
           id: crypto.randomUUID(),
+          selected: marker.unit !== '',
           markerName: marker.markerName,
           value: String(marker.value),
           unit: marker.unit,
@@ -846,6 +954,57 @@ function App() {
     } catch {
       setExtractionStatus('failed')
       setExtractionMessage('Could not extract text from this document.')
+      setSetupState('error')
+    }
+  }
+
+  const updateBloodTest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !editingBloodTestId || !editBloodTestMemberId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/health/blood-tests/${editingBloodTestId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          memberId: editBloodTestMemberId,
+          testedAt: editBloodTestTestedAt,
+          labName: editBloodTestLabName || null,
+          notes: editBloodTestNotes || null,
+          markers: markerPayload(editMarkerRows),
+        }),
+      })
+      await loadHealthOverview(household.id)
+      if (selectedMarkerName) {
+        await loadMarkerHistory(household.id, selectedMarkerName)
+      }
+      setEditingBloodTestId(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteBloodTest = async (bloodTestId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiNoContent(`/api/households/${household.id}/health/blood-tests/${bloodTestId}`, { method: 'DELETE' })
+      await loadHealthOverview(household.id)
+      if (selectedMarkerName) {
+        await loadMarkerHistory(household.id, selectedMarkerName)
+      }
+      setEditingBloodTestId((current) => (current === bloodTestId ? null : current))
+      setSetupState('idle')
+    } catch {
       setSetupState('error')
     }
   }
@@ -900,6 +1059,47 @@ function App() {
 
     return healthDocuments.find((document) => document.id === documentId)?.originalName ?? 'Uploaded document'
   }
+
+  const healthTests = healthOverview?.latestBloodTests ?? []
+  const allHealthMarkers = healthTests.flatMap((test) => test.markers)
+  const latestTest = healthTests[0] ?? null
+  const needsReviewMarkers = allHealthMarkers.filter((marker) => (
+    marker.status === 'unknown'
+    || marker.unit.trim() === ''
+    || (marker.referenceMin !== null && marker.referenceMax !== null && marker.referenceMin > marker.referenceMax)
+  ))
+  const recentlyChangedMarkers = healthOverview?.markerNames
+    .map((markerName) => {
+      const values = allHealthMarkers
+        .filter((marker) => marker.name === markerName)
+        .sort((left, right) => right.testedAt.localeCompare(left.testedAt))
+
+      if (values.length < 2) {
+        return null
+      }
+
+      return {
+        name: markerName,
+        latest: values[0],
+        change: values[0].value - values[1].value,
+      }
+    })
+    .filter((item): item is { name: string, latest: BloodTestMarker, change: number } => item !== null)
+    .sort((left, right) => Math.abs(right.change) - Math.abs(left.change))
+    .slice(0, 4) ?? []
+  const staleMarkerNames = (healthOverview?.markerNames ?? []).filter((markerName) => {
+    const newest = allHealthMarkers
+      .filter((marker) => marker.name === markerName)
+      .sort((left, right) => right.testedAt.localeCompare(left.testedAt))[0]
+
+    if (!newest) {
+      return false
+    }
+
+    const daysSince = (Date.now() - new Date(newest.testedAt).getTime()) / (1000 * 60 * 60 * 24)
+
+    return daysSince > 365
+  }).slice(0, 6)
 
   const trendMarkers = [...markerHistory].reverse()
   const latestMarker = markerHistory[0] ?? null
@@ -1601,6 +1801,14 @@ function App() {
 
         {activePage === 'health' && (
           <section className="health-panel page-card">
+            <datalist id="health-marker-catalog">
+              {(healthOverview?.markerCatalog ?? []).map((marker) => (
+                <option value={marker.name} key={marker.name}>
+                  {marker.category} · {marker.unit}
+                </option>
+              ))}
+            </datalist>
+
             <div className="section-heading">
               <div>
                 <p className="eyebrow">Health</p>
@@ -1629,7 +1837,38 @@ function App() {
                 <span>Family filter</span>
                 <strong>{healthMemberFilterId ? memberNameById(healthMemberFilterId) : 'All'}</strong>
               </article>
+              <article>
+                <span>Needs review</span>
+                <strong>{needsReviewMarkers.length}</strong>
+              </article>
             </div>
+
+            <section className="health-insight-grid" aria-label="Health overview">
+              <article>
+                <span>Latest result</span>
+                <strong>{latestTest ? latestTest.testedAt : 'No result'}</strong>
+                <small>{latestTest ? `${memberNameById(latestTest.memberId)} · ${latestTest.markers.length} markers` : 'Import a lab file to start history.'}</small>
+              </article>
+              <article>
+                <span>Recently changed</span>
+                <strong>{recentlyChangedMarkers.length > 0 ? recentlyChangedMarkers[0].name : 'No comparison'}</strong>
+                <small>
+                  {recentlyChangedMarkers.length > 0
+                    ? `${recentlyChangedMarkers[0].change > 0 ? '+' : ''}${recentlyChangedMarkers[0].change.toLocaleString('pl-PL')} ${recentlyChangedMarkers[0].latest.unit}`
+                    : 'Add at least two results for one marker.'}
+                </small>
+              </article>
+              <article>
+                <span>Old markers</span>
+                <strong>{staleMarkerNames.length}</strong>
+                <small>{staleMarkerNames.length > 0 ? staleMarkerNames.slice(0, 3).join(', ') : 'Nothing older than one year in loaded data.'}</small>
+              </article>
+              <article>
+                <span>Review queue</span>
+                <strong>{needsReviewMarkers.length > 0 ? needsReviewMarkers[0].name : 'Clean'}</strong>
+                <small>{needsReviewMarkers.length > 0 ? 'Unknown status, missing unit, or suspicious range.' : 'Imported rows look structured.'}</small>
+              </article>
+            </section>
 
             <section className="expense-filters health-filters" aria-label="Health filters">
               <label>
@@ -1706,6 +1945,7 @@ function App() {
                           <input
                             value={row.markerName}
                             onChange={(event) => updateMarkerRow(row.id, 'markerName', event.target.value)}
+                            list="health-marker-catalog"
                             placeholder="TSH"
                             required
                           />
@@ -1898,13 +2138,25 @@ function App() {
                         Add marker
                       </button>
                     </div>
-                    {importMarkerRows.map((row) => (
-                      <div className="marker-row" key={row.id}>
+                    {importMarkerRows.map((row) => {
+                      const warnings = markerWarnings(row)
+
+                      return (
+                      <div className={`marker-row ${warnings.length > 0 ? 'marker-row-warning' : ''} ${row.selected ? '' : 'marker-row-muted'}`} key={row.id}>
+                        <label className="marker-select-field">
+                          Import
+                          <input
+                            type="checkbox"
+                            checked={row.selected}
+                            onChange={(event) => updateImportMarkerRow(row.id, 'selected', event.target.checked)}
+                          />
+                        </label>
                         <label>
                           Marker
                           <input
                             value={row.markerName}
                             onChange={(event) => updateImportMarkerRow(row.id, 'markerName', event.target.value)}
+                            list="health-marker-catalog"
                             placeholder="Hemoglobina"
                             required
                           />
@@ -1959,15 +2211,21 @@ function App() {
                           Marker notes
                           <input value={row.notes} onChange={(event) => updateImportMarkerRow(row.id, 'notes', event.target.value)} />
                         </label>
+                        {warnings.length > 0 && (
+                          <div className="marker-warning-list">
+                            {warnings.map((warning) => <span key={warning}>{warning}</span>)}
+                          </div>
+                        )}
                         <button type="button" className="remove-marker" onClick={() => removeImportMarkerRow(row.id)}>
                           Remove
                         </button>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
 
-                  <button type="submit" disabled={setupState === 'saving'}>
-                    Save imported blood test
+                  <button type="submit" disabled={setupState === 'saving' || importMarkerRows.every((row) => !row.selected)}>
+                    Save {importMarkerRows.filter((row) => row.selected).length} selected markers
                   </button>
                 </form>
               )}
@@ -1980,13 +2238,23 @@ function App() {
                   {(healthOverview?.latestBloodTests ?? []).length > 0 ? (
                     healthOverview?.latestBloodTests.map((test) => (
                       <article className="blood-test-card" key={test.id}>
-                        <div>
-                          <strong>{memberNameById(test.memberId)} · {test.testedAt}</strong>
-                          <small>
-                            {test.labName ?? 'Lab not set'}
-                            {test.sourceDocumentId ? ` · from ${documentNameById(test.sourceDocumentId)}` : ''}
-                            {test.notes ? ` · ${test.notes}` : ''}
-                          </small>
+                        <div className="blood-test-card-heading">
+                          <div>
+                            <strong>{memberNameById(test.memberId)} · {test.testedAt}</strong>
+                            <small>
+                              {test.labName ?? 'Lab not set'}
+                              {test.sourceDocumentId ? ` · from ${documentNameById(test.sourceDocumentId)}` : ''}
+                              {test.notes ? ` · ${test.notes}` : ''}
+                            </small>
+                          </div>
+                          <div className="blood-test-actions">
+                            <button type="button" onClick={() => startEditBloodTest(test)}>
+                              Edit
+                            </button>
+                            <button type="button" onClick={() => deleteBloodTest(test.id)}>
+                              Delete
+                            </button>
+                          </div>
                         </div>
                         <div className="marker-chip-list">
                           {test.markers.map((marker) => (
@@ -1995,6 +2263,106 @@ function App() {
                             </span>
                           ))}
                         </div>
+                        {editingBloodTestId === test.id && (
+                          <form className="inline-edit-form health-edit-form" onSubmit={updateBloodTest}>
+                            <label>
+                              Family member
+                              <select value={editBloodTestMemberId} onChange={(event) => setEditBloodTestMemberId(event.target.value)} required>
+                                {(household?.members ?? []).map((member) => (
+                                  <option value={member.id} key={member.id}>{member.displayName}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Test date
+                              <input type="date" value={editBloodTestTestedAt} onChange={(event) => setEditBloodTestTestedAt(event.target.value)} required />
+                            </label>
+                            <label>
+                              Lab
+                              <input value={editBloodTestLabName} onChange={(event) => setEditBloodTestLabName(event.target.value)} />
+                            </label>
+                            <label className="health-notes">
+                              Notes
+                              <input value={editBloodTestNotes} onChange={(event) => setEditBloodTestNotes(event.target.value)} />
+                            </label>
+                            <div className="marker-form-list edit-marker-list">
+                              <div className="marker-form-heading">
+                                <h3>Markers</h3>
+                                <button type="button" onClick={() => setEditMarkerRows((rows) => [...rows, createMarkerRow()])}>
+                                  Add marker
+                                </button>
+                              </div>
+                              {editMarkerRows.map((row) => {
+                                const warnings = markerWarnings(row)
+
+                                return (
+                                  <div className={`marker-row ${warnings.length > 0 ? 'marker-row-warning' : ''}`} key={row.id}>
+                                    <label>
+                                      Marker
+                                      <input
+                                        value={row.markerName}
+                                        onChange={(event) => updateEditMarkerRow(row.id, 'markerName', event.target.value)}
+                                        list="health-marker-catalog"
+                                        required
+                                      />
+                                    </label>
+                                    <label>
+                                      Value
+                                      <input
+                                        type="number"
+                                        step="0.001"
+                                        value={row.value}
+                                        onChange={(event) => updateEditMarkerRow(row.id, 'value', event.target.value)}
+                                        required
+                                      />
+                                    </label>
+                                    <label>
+                                      Unit
+                                      <input value={row.unit} onChange={(event) => updateEditMarkerRow(row.id, 'unit', event.target.value)} required />
+                                    </label>
+                                    <label>
+                                      Ref min
+                                      <input type="number" step="0.001" value={row.referenceMin} onChange={(event) => updateEditMarkerRow(row.id, 'referenceMin', event.target.value)} />
+                                    </label>
+                                    <label>
+                                      Ref max
+                                      <input type="number" step="0.001" value={row.referenceMax} onChange={(event) => updateEditMarkerRow(row.id, 'referenceMax', event.target.value)} />
+                                    </label>
+                                    <label>
+                                      Status
+                                      <select value={row.status} onChange={(event) => updateEditMarkerRow(row.id, 'status', event.target.value)}>
+                                        <option value="unknown">Unknown</option>
+                                        <option value="normal">Normal</option>
+                                        <option value="low">Low</option>
+                                        <option value="high">High</option>
+                                      </select>
+                                    </label>
+                                    <label className="marker-note-field">
+                                      Marker notes
+                                      <input value={row.notes} onChange={(event) => updateEditMarkerRow(row.id, 'notes', event.target.value)} />
+                                    </label>
+                                    {warnings.length > 0 && (
+                                      <div className="marker-warning-list">
+                                        {warnings.map((warning) => <span key={warning}>{warning}</span>)}
+                                      </div>
+                                    )}
+                                    <button type="button" className="remove-marker" onClick={() => removeEditMarkerRow(row.id)}>
+                                      Remove
+                                    </button>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            <div className="inline-edit-actions">
+                              <button type="submit" disabled={setupState === 'saving'}>
+                                Save changes
+                              </button>
+                              <button type="button" onClick={() => setEditingBloodTestId(null)}>
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        )}
                       </article>
                     ))
                   ) : (

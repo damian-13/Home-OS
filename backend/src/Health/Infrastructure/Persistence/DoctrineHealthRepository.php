@@ -27,6 +27,15 @@ final readonly class DoctrineHealthRepository implements HealthRepository
         $this->entityManager->flush();
     }
 
+    public function bloodTestById(string $householdId, string $bloodTestId): ?BloodTest
+    {
+        return $this->entityManager->getRepository(BloodTest::class)->findOneBy([
+            'householdId' => $householdId,
+            'id' => $bloodTestId,
+            'deletedAt' => null,
+        ]);
+    }
+
     public function latestDocuments(string $householdId, ?string $memberId = null, int $limit = 20): array
     {
         $builder = $this->entityManager->getRepository(HealthDocument::class)
@@ -58,6 +67,7 @@ final readonly class DoctrineHealthRepository implements HealthRepository
         $builder = $this->entityManager->getRepository(BloodTest::class)
             ->createQueryBuilder('bloodTest')
             ->andWhere('bloodTest.householdId = :householdId')
+            ->andWhere('bloodTest.deletedAt IS NULL')
             ->setParameter('householdId', $householdId)
             ->orderBy('bloodTest.testedAt', 'DESC')
             ->addOrderBy('bloodTest.id', 'DESC')
@@ -78,6 +88,7 @@ final readonly class DoctrineHealthRepository implements HealthRepository
             ->createQueryBuilder('marker')
             ->join('marker.bloodTest', 'bloodTest')
             ->andWhere('bloodTest.householdId = :householdId')
+            ->andWhere('bloodTest.deletedAt IS NULL')
             ->andWhere('marker.status IN (:statuses)')
             ->setParameter('householdId', $householdId)
             ->setParameter('statuses', ['low', 'high'])
@@ -99,6 +110,7 @@ final readonly class DoctrineHealthRepository implements HealthRepository
             ->createQueryBuilder('marker')
             ->join('marker.bloodTest', 'bloodTest')
             ->andWhere('bloodTest.householdId = :householdId')
+            ->andWhere('bloodTest.deletedAt IS NULL')
             ->andWhere('LOWER(marker.name) = LOWER(:markerName)')
             ->setParameter('householdId', $householdId)
             ->setParameter('markerName', $markerName)
@@ -121,6 +133,7 @@ final readonly class DoctrineHealthRepository implements HealthRepository
             ->select('DISTINCT marker.name')
             ->join('marker.bloodTest', 'bloodTest')
             ->andWhere('bloodTest.householdId = :householdId')
+            ->andWhere('bloodTest.deletedAt IS NULL')
             ->setParameter('householdId', $householdId)
             ->orderBy('marker.name', 'ASC');
 

@@ -37,6 +37,9 @@ class BloodTest
     #[ORM\Column(type: 'datetime_immutable')]
     private DateTimeImmutable $createdAt;
 
+    #[ORM\Column(name: 'deleted_at', type: 'datetime_immutable', nullable: true)]
+    private ?DateTimeImmutable $deletedAt = null;
+
     /**
      * @var Collection<int, BloodTestMarker>
      */
@@ -80,6 +83,41 @@ class BloodTest
         return $marker;
     }
 
+    /**
+     * @param list<array{id: string, name: string, value: float, unit: string, referenceMin: float|null, referenceMax: float|null, status: string, notes: string|null}> $markers
+     */
+    public function replaceDetails(
+        string $memberId,
+        DateTimeImmutable $testedAt,
+        ?string $labName,
+        ?string $notes,
+        array $markers,
+    ): void {
+        $this->memberId = $memberId;
+        $this->testedAt = $testedAt;
+        $this->labName = $labName;
+        $this->notes = $notes;
+        $this->markers->clear();
+
+        foreach ($markers as $marker) {
+            $this->addMarker(
+                $marker['id'],
+                $marker['name'],
+                $marker['value'],
+                $marker['unit'],
+                $marker['referenceMin'],
+                $marker['referenceMax'],
+                $marker['status'],
+                $marker['notes'],
+            );
+        }
+    }
+
+    public function delete(): void
+    {
+        $this->deletedAt = new DateTimeImmutable();
+    }
+
     public function id(): string
     {
         return $this->id;
@@ -113,6 +151,11 @@ class BloodTest
     public function sourceDocumentId(): ?string
     {
         return $this->sourceDocumentId;
+    }
+
+    public function deletedAt(): ?DateTimeImmutable
+    {
+        return $this->deletedAt;
     }
 
     /**
