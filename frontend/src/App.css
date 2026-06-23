@@ -1050,6 +1050,28 @@ h3 {
   white-space: nowrap;
 }
 
+.money-list.compact .money-item {
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.money-list.compact .money-item strong {
+  display: -webkit-box;
+  max-height: 7.5em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+
+.money-list.compact .money-item > button {
+  grid-column: 2 / -1;
+  justify-self: start;
+  min-width: 86px;
+  min-height: 40px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
 .inline-edit-form {
   grid-column: 2 / 4;
   display: grid;
