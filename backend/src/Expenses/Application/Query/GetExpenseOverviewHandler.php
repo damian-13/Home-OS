@@ -49,7 +49,7 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
         $monthTotalCents = array_sum(array_map(static fn ($expense) => $expense->amountCents(), $monthExpenses));
         $recurringTotalCents = array_sum(array_map(static fn ($bill) => $bill->amountCents(), $recurringBills));
         $expectedIncomeCents = array_sum(array_map(static fn ($source) => $source->active() ? $source->amountCents() : 0, $incomeSources));
-        $actualIncomeCents = array_sum(array_map(static fn ($entry) => $entry->amountCents(), $incomeEntries));
+        $actualIncomeCents = array_sum(array_map(static fn ($entry) => self::isRealIncomeEntry($entry) ? $entry->amountCents() : 0, $incomeEntries));
 
         $categoryTotals = [];
         foreach ($categories as $category) {
@@ -77,6 +77,10 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
             $dailyTotals[$day]['expense'] += $expense->amountCents() / 100;
         }
         foreach ($incomeEntries as $entry) {
+            if (!self::isRealIncomeEntry($entry)) {
+                continue;
+            }
+
             $day = $entry->receivedOn()->format('Y-m-d');
             $dailyTotals[$day] ??= ['date' => $day, 'expense' => 0.0, 'income' => 0.0];
             $dailyTotals[$day]['income'] += $entry->amountCents() / 100;
@@ -94,6 +98,10 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
             }
         }
         foreach ($trendIncomeEntries as $entry) {
+            if (!self::isRealIncomeEntry($entry)) {
+                continue;
+            }
+
             $monthKey = $entry->receivedOn()->format('Y-m');
             if (isset($monthlyTrend[$monthKey])) {
                 $monthlyTrend[$monthKey]['income'] += $entry->amountCents() / 100;
@@ -156,6 +164,18 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
         }
         $plannedBillsCents = array_sum(array_map(static fn ($bill) => $bill->amountCents(), $recurringBills));
         $incomeForProjectionCents = max($expectedIncomeCents, $actualIncomeCents);
+        $expenseReviewCandidates = array_values(array_filter(
+            $monthExpenses,
+            static fn ($expense) => $expense->reviewStatus() === 'needs_review',
+        ));
+        $incomeReviewCandidates = array_values(array_filter(
+            $incomeEntries,
+            static fn ($entry) => $entry->reviewStatus() === 'needs_review',
+        ));
+        $transferLikeIncomeCents = array_sum(array_map(
+            static fn ($entry) => in_array($entry->incomeKind(), ['transfer', 'refund'], true) ? $entry->amountCents() : 0,
+            $incomeEntries,
+        ));
 
         return new ExpenseOverviewView(
             'PLN',
@@ -181,6 +201,14 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
             array_values($dailyTotals),
             array_values($monthlyTrend),
             [
+                'needsReviewCount' => count($expenseReviewCandidates) + count($incomeReviewCandidates),
+                'expenseNeedsReviewCount' => count($expenseReviewCandidates),
+                'incomeNeedsReviewCount' => count($incomeReviewCandidates),
+                'excludedIncomeTotal' => $transferLikeIncomeCents / 100,
+                'expenseCandidates' => array_map(static fn ($expense) => ExpenseView::fromExpense($expense), array_slice($expenseReviewCandidates, 0, 12)),
+                'incomeCandidates' => array_map(static fn ($entry) => IncomeEntryView::fromEntry($entry), array_slice($incomeReviewCandidates, 0, 12)),
+            ],
+            [
                 'month' => $month,
                 'categoryId' => $categoryId,
                 'paidByMemberId' => $paidByMemberId,
@@ -195,6 +223,11 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
         }
 
         return (new DateTimeImmutable())->format('Y-m');
+    }
+
+    private static function isRealIncomeEntry($entry): bool
+    {
+        return in_array($entry->incomeKind(), ['salary', 'other'], true);
     }
 
     /**

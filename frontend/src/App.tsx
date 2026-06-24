@@ -53,6 +53,8 @@ type ExpenseItem = {
   spentOn: string
   category: ExpenseCategory
   paidByMemberId: string | null
+  reviewStatus: 'needs_review' | 'reviewed'
+  reviewReason: string | null
 }
 
 type RecurringBill = {
@@ -82,6 +84,9 @@ type IncomeEntry = {
   amount: number
   currency: string
   receivedOn: string
+  incomeKind: 'salary' | 'transfer' | 'refund' | 'other'
+  reviewStatus: 'needs_review' | 'reviewed'
+  reviewReason: string | null
 }
 
 type BillChecklistItem = {
@@ -126,6 +131,14 @@ type ExpenseOverview = {
   memberTotals: Array<{ memberId: string | null; amount: number }>
   dailySpending: Array<{ date: string; expense: number; income: number }>
   monthlyTrend: Array<{ month: string; expense: number; income: number; balance: number }>
+  review: {
+    needsReviewCount: number
+    expenseNeedsReviewCount: number
+    incomeNeedsReviewCount: number
+    excludedIncomeTotal: number
+    expenseCandidates: ExpenseItem[]
+    incomeCandidates: IncomeEntry[]
+  }
   activeFilters: {
     month: string
     categoryId: string | null
@@ -852,6 +865,66 @@ function App() {
     }
   }
 
+  const patchExpenseReview = async (expense: ExpenseItem, updates: Partial<Pick<ExpenseItem, 'category' | 'reviewStatus' | 'reviewReason'>>) => {
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/${expense.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          categoryId: updates.category?.id ?? expense.category.id,
+          description: expense.description,
+          amount: expense.amount,
+          spentOn: expense.spentOn,
+          paidByMemberId: expense.paidByMemberId,
+          reviewStatus: updates.reviewStatus ?? expense.reviewStatus,
+          reviewReason: updates.reviewReason ?? expense.reviewReason,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const changeExpenseCategory = async (expense: ExpenseItem, categoryId: string) => {
+    const category = expenseOverview?.categories.find((item) => item.id === categoryId)
+
+    if (!category) {
+      return
+    }
+
+    await patchExpenseReview(expense, { category, reviewStatus: 'reviewed', reviewReason: null })
+  }
+
+  const patchIncomeReview = async (
+    entry: IncomeEntry,
+    updates: Partial<Pick<IncomeEntry, 'incomeKind' | 'reviewStatus' | 'reviewReason'>>,
+  ) => {
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/expenses/income-entries/${entry.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          sourceId: entry.sourceId,
+          memberId: entry.memberId,
+          description: entry.description,
+          amount: entry.amount,
+          receivedOn: entry.receivedOn,
+          incomeKind: updates.incomeKind ?? entry.incomeKind,
+          reviewStatus: updates.reviewStatus ?? entry.reviewStatus,
+          reviewReason: updates.reviewReason ?? entry.reviewReason,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
   const saveBudgets = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!household) return
@@ -1247,6 +1320,7 @@ function App() {
   const balanceTone = (expenseOverview?.projectedMonthEndBalance ?? 0) < 0 ? 'danger' : 'good'
   const monthlyTrend = expenseOverview?.monthlyTrend ?? []
   const dailySpending = expenseOverview?.dailySpending ?? []
+  const financeReview = expenseOverview?.review
   const maxTrendAmount = Math.max(1, ...monthlyTrend.flatMap((row) => [row.income, row.expense]))
   const maxDailyAmount = Math.max(1, ...dailySpending.map((row) => row.expense))
   const dailyChartWidth = 640
@@ -1796,6 +1870,98 @@ function App() {
                   })}
                 </div>
               </article>
+            </section>
+
+            <section className="finance-review-panel" aria-label="Imported transaction review">
+              <div className="panel-heading-row">
+                <div>
+                  <p className="eyebrow">Review</p>
+                  <h3>Imported transaction cleanup</h3>
+                </div>
+                <div className="review-score">
+                  <strong>{financeReview?.needsReviewCount ?? 0}</strong>
+                  <span>need review</span>
+                </div>
+              </div>
+
+              <div className="review-stats">
+                <article>
+                  <span>Expenses to check</span>
+                  <strong>{financeReview?.expenseNeedsReviewCount ?? 0}</strong>
+                </article>
+                <article>
+                  <span>Income to classify</span>
+                  <strong>{financeReview?.incomeNeedsReviewCount ?? 0}</strong>
+                </article>
+                <article>
+                  <span>Excluded from income</span>
+                  <strong>{pln(financeReview?.excludedIncomeTotal ?? 0)}</strong>
+                </article>
+              </div>
+
+              <div className="review-grid">
+                <section>
+                  <h4>Expense category check</h4>
+                  <div className="review-list">
+                    {(financeReview?.expenseCandidates ?? []).length > 0 ? (
+                      financeReview?.expenseCandidates.map((expense) => (
+                        <article className="review-item" key={expense.id}>
+                          <span style={{ background: expense.category.color }}></span>
+                          <div>
+                            <strong>{expense.description}</strong>
+                            <small>{expense.spentOn} · {pln(expense.amount)} · {expense.reviewReason ?? 'Imported row'}</small>
+                          </div>
+                          <select value={expense.category.id} onChange={(event) => changeExpenseCategory(expense, event.target.value)}>
+                            {(expenseOverview?.categories ?? []).map((category) => (
+                              <option value={category.id} key={category.id}>{category.name}</option>
+                            ))}
+                          </select>
+                          <button type="button" onClick={() => patchExpenseReview(expense, { reviewStatus: 'reviewed', reviewReason: null })}>
+                            Looks good
+                          </button>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">No expense rows need review for this month.</p>
+                    )}
+                  </div>
+                </section>
+
+                <section>
+                  <h4>Income type check</h4>
+                  <div className="review-list">
+                    {(financeReview?.incomeCandidates ?? []).length > 0 ? (
+                      financeReview?.incomeCandidates.map((entry) => (
+                        <article className={`review-item income-kind-${entry.incomeKind}`} key={entry.id}>
+                          <span></span>
+                          <div>
+                            <strong>{entry.description}</strong>
+                            <small>{entry.receivedOn} · {pln(entry.amount)} · {entry.reviewReason ?? 'Imported row'}</small>
+                          </div>
+                          <select
+                            value={entry.incomeKind}
+                            onChange={(event) => patchIncomeReview(entry, {
+                              incomeKind: event.target.value as IncomeEntry['incomeKind'],
+                              reviewStatus: 'reviewed',
+                              reviewReason: null,
+                            })}
+                          >
+                            <option value="salary">Salary</option>
+                            <option value="transfer">Transfer</option>
+                            <option value="refund">Refund</option>
+                            <option value="other">Other income</option>
+                          </select>
+                          <button type="button" onClick={() => patchIncomeReview(entry, { reviewStatus: 'reviewed', reviewReason: null })}>
+                            Looks good
+                          </button>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">No income rows need review for this month.</p>
+                    )}
+                  </div>
+                </section>
+              </div>
             </section>
 
             <section className="money-management-grid" aria-label="Monthly money control">

@@ -31,6 +31,8 @@ final readonly class UpdateExpenseController
             (float) ($payload['amount'] ?? 0),
             (string) ($payload['spentOn'] ?? date('Y-m-d')),
             ($payload['paidByMemberId'] ?? null) ? (string) $payload['paidByMemberId'] : null,
+            isset($payload['reviewStatus']) ? (string) $payload['reviewStatus'] : null,
+            isset($payload['reviewReason']) && trim((string) $payload['reviewReason']) !== '' ? (string) $payload['reviewReason'] : null,
         ));
 
         return new JsonResponse(['id' => $id]);

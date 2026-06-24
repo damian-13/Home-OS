@@ -18,6 +18,13 @@ final readonly class UpdateIncomeEntryHandler implements CommandHandler
         }
         $entry = $this->expenses->getIncomeEntry($command->householdId, $command->entryId);
         $entry->changeDetails($command->sourceId, $command->memberId, trim($command->description), (int) round($command->amount * 100), new DateTimeImmutable($command->receivedOn));
+        if ($command->incomeKind !== null || $command->reviewStatus !== null) {
+            $entry->changeClassification(
+                $command->incomeKind ?? $entry->incomeKind(),
+                $command->reviewStatus ?? $entry->reviewStatus(),
+                $command->reviewReason ?? $entry->reviewReason(),
+            );
+        }
         $this->expenses->saveIncomeEntry($entry);
         return $entry->id();
     }

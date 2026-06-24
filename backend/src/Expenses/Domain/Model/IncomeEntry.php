@@ -41,6 +41,15 @@ class IncomeEntry
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?DateTimeImmutable $deletedAt = null;
 
+    #[ORM\Column(type: 'string', length: 16)]
+    private string $incomeKind = 'other';
+
+    #[ORM\Column(type: 'string', length: 16)]
+    private string $reviewStatus = 'reviewed';
+
+    #[ORM\Column(type: 'string', length: 160, nullable: true)]
+    private ?string $reviewReason = null;
+
     public function __construct(string $id, string $householdId, ?string $sourceId, ?string $memberId, string $description, int $amountCents, string $currency, DateTimeImmutable $receivedOn)
     {
         $this->id = $id;
@@ -63,6 +72,21 @@ class IncomeEntry
         $this->receivedOn = $receivedOn;
     }
 
+    public function changeClassification(string $incomeKind, string $reviewStatus, ?string $reviewReason = null): void
+    {
+        if (!in_array($incomeKind, ['salary', 'transfer', 'refund', 'other'], true)) {
+            throw new \InvalidArgumentException('Unsupported income kind.');
+        }
+
+        if (!in_array($reviewStatus, ['needs_review', 'reviewed'], true)) {
+            throw new \InvalidArgumentException('Unsupported income review status.');
+        }
+
+        $this->incomeKind = $incomeKind;
+        $this->reviewStatus = $reviewStatus;
+        $this->reviewReason = $reviewStatus === 'needs_review' ? $reviewReason : null;
+    }
+
     public function delete(): void
     {
         $this->deletedAt ??= new DateTimeImmutable();
@@ -76,4 +100,7 @@ class IncomeEntry
     public function amountCents(): int { return $this->amountCents; }
     public function currency(): string { return $this->currency; }
     public function receivedOn(): DateTimeImmutable { return $this->receivedOn; }
+    public function incomeKind(): string { return $this->incomeKind; }
+    public function reviewStatus(): string { return $this->reviewStatus; }
+    public function reviewReason(): ?string { return $this->reviewReason; }
 }

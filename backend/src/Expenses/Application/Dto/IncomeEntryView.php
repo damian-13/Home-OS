@@ -14,11 +14,25 @@ final readonly class IncomeEntryView
         public float $amount,
         public string $currency,
         public string $receivedOn,
+        public string $incomeKind,
+        public string $reviewStatus,
+        public ?string $reviewReason,
     ) {
     }
 
     public static function fromEntry(IncomeEntry $entry): self
     {
-        return new self($entry->id(), $entry->sourceId(), $entry->memberId(), $entry->description(), $entry->amountCents() / 100, $entry->currency(), $entry->receivedOn()->format('Y-m-d'));
+        return new self(
+            $entry->id(),
+            $entry->sourceId(),
+            $entry->memberId(),
+            $entry->description(),
+            $entry->amountCents() / 100,
+            $entry->currency(),
+            $entry->receivedOn()->format('Y-m-d'),
+            $entry->incomeKind(),
+            $entry->reviewStatus(),
+            $entry->reviewReason(),
+        );
     }
 }

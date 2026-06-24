@@ -14,6 +14,9 @@ final readonly class UpdateIncomeEntryCommand implements Command
         public string $description,
         public float $amount,
         public string $receivedOn,
+        public ?string $incomeKind = null,
+        public ?string $reviewStatus = null,
+        public ?string $reviewReason = null,
     ) {
     }
 }

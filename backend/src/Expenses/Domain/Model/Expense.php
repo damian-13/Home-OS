@@ -42,6 +42,12 @@ class Expense
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?DateTimeImmutable $deletedAt = null;
 
+    #[ORM\Column(type: 'string', length: 16)]
+    private string $reviewStatus = 'reviewed';
+
+    #[ORM\Column(type: 'string', length: 160, nullable: true)]
+    private ?string $reviewReason = null;
+
     public function __construct(
         string $id,
         string $householdId,
@@ -70,6 +76,16 @@ class Expense
         $this->amountCents = $amountCents;
         $this->spentOn = $spentOn;
         $this->paidByMemberId = $paidByMemberId;
+    }
+
+    public function changeReview(string $status, ?string $reason = null): void
+    {
+        if (!in_array($status, ['needs_review', 'reviewed'], true)) {
+            throw new \InvalidArgumentException('Unsupported expense review status.');
+        }
+
+        $this->reviewStatus = $status;
+        $this->reviewReason = $status === 'needs_review' ? $reason : null;
     }
 
     public function delete(): void
@@ -120,5 +136,15 @@ class Expense
     public function deletedAt(): ?DateTimeImmutable
     {
         return $this->deletedAt;
+    }
+
+    public function reviewStatus(): string
+    {
+        return $this->reviewStatus;
+    }
+
+    public function reviewReason(): ?string
+    {
+        return $this->reviewReason;
     }
 }

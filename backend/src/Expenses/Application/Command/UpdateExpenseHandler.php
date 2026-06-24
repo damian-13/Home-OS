@@ -33,6 +33,11 @@ final readonly class UpdateExpenseHandler implements CommandHandler
             new DateTimeImmutable($command->spentOn),
             $command->paidByMemberId,
         );
+
+        if ($command->reviewStatus !== null) {
+            $expense->changeReview($command->reviewStatus, $command->reviewReason);
+        }
+
         $this->expenses->saveExpense($expense);
 
         return $expense->id();

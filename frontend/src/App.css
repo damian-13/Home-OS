@@ -721,6 +721,129 @@ h3 {
   border-radius: inherit;
 }
 
+.finance-review-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff, #f8fbff);
+}
+
+.review-score {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.review-score strong {
+  color: #e34a12;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.review-score span,
+.review-stats span {
+  color: #66748a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.review-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.review-stats article {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f3f6fc;
+}
+
+.review-stats strong {
+  color: #132033;
+  font-size: 18px;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.review-grid h4 {
+  margin: 0 0 10px;
+  color: #132033;
+  font-size: 15px;
+}
+
+.review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.review-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) minmax(150px, 0.4fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e3e9f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.review-item > span {
+  width: 12px;
+  height: 38px;
+  border-radius: 999px;
+  background: #18a67a;
+}
+
+.review-item strong {
+  display: -webkit-box;
+  max-height: 3.2em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #132033;
+  line-height: 1.2;
+}
+
+.review-item small {
+  display: block;
+  margin-top: 4px;
+  color: #66748a;
+  font-size: 12px;
+}
+
+.review-item select {
+  width: 100%;
+  min-width: 0;
+}
+
+.review-item button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.review-item.income-kind-transfer > span {
+  background: #64748b;
+}
+
+.review-item.income-kind-refund > span {
+  background: #7c3aed;
+}
+
+.review-item.income-kind-salary > span {
+  background: #18a67a;
+}
+
 .money-control-panel {
   display: grid;
   gap: 12px;
@@ -1979,6 +2102,7 @@ h3 {
   .expense-lists,
   .expense-visual-grid,
   .money-management-grid,
+  .review-grid,
   .health-lists,
   .health-insight-grid,
   .placeholder-grid,
@@ -2018,8 +2142,14 @@ h3 {
 
   .money-mini-form,
   .budget-edit-grid,
-  .bill-checklist article {
+  .bill-checklist article,
+  .review-item {
     grid-template-columns: 1fr;
+  }
+
+  .review-item > span {
+    width: 100%;
+    height: 8px;
   }
 
   .cashflow-chart {
@@ -2045,6 +2175,7 @@ h3 {
   .category-strip,
   .expense-summary-grid,
   .money-control-grid,
+  .review-stats,
   .health-summary-grid,
   .marker-trend-grid,
   .nav-list {

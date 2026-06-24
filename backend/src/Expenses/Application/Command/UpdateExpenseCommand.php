@@ -14,6 +14,8 @@ final readonly class UpdateExpenseCommand implements Command
         public float $amount,
         public string $spentOn,
         public ?string $paidByMemberId,
+        public ?string $reviewStatus = null,
+        public ?string $reviewReason = null,
     ) {
     }
 }

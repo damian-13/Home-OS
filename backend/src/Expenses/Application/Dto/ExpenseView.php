@@ -14,6 +14,8 @@ final readonly class ExpenseView
         public string $spentOn,
         public ExpenseCategoryView $category,
         public ?string $paidByMemberId,
+        public string $reviewStatus,
+        public ?string $reviewReason,
     ) {
     }
 
@@ -27,6 +29,8 @@ final readonly class ExpenseView
             $expense->spentOn()->format('Y-m-d'),
             ExpenseCategoryView::fromCategory($expense->category()),
             $expense->paidByMemberId(),
+            $expense->reviewStatus(),
+            $expense->reviewReason(),
         );
     }
 }

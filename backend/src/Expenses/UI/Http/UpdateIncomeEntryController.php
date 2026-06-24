@@ -26,6 +26,9 @@ final readonly class UpdateIncomeEntryController
             (string) ($payload['description'] ?? ''),
             (float) ($payload['amount'] ?? 0),
             (string) ($payload['receivedOn'] ?? date('Y-m-d')),
+            isset($payload['incomeKind']) ? (string) $payload['incomeKind'] : null,
+            isset($payload['reviewStatus']) ? (string) $payload['reviewStatus'] : null,
+            isset($payload['reviewReason']) && trim((string) $payload['reviewReason']) !== '' ? (string) $payload['reviewReason'] : null,
         ));
         return new JsonResponse(['id' => $id]);
     }
