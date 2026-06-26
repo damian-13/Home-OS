@@ -5,6 +5,7 @@ namespace App\Expenses\Domain\Repository;
 use App\Expenses\Domain\Model\Expense;
 use App\Expenses\Domain\Model\ExpenseBudget;
 use App\Expenses\Domain\Model\ExpenseCategory;
+use App\Expenses\Domain\Model\FinanceReviewBatch;
 use App\Expenses\Domain\Model\FinanceReviewRule;
 use App\Expenses\Domain\Model\IncomeEntry;
 use App\Expenses\Domain\Model\IncomeSource;
@@ -28,6 +29,8 @@ interface ExpenseRepository
     public function saveRecurringBillPayment(RecurringBillPayment $payment): void;
 
     public function saveReviewRule(FinanceReviewRule $rule): void;
+
+    public function saveReviewBatch(FinanceReviewBatch $batch): void;
 
     public function getCategory(string $householdId, string $categoryId): ExpenseCategory;
 
@@ -87,4 +90,6 @@ interface ExpenseRepository
      * @return list<FinanceReviewRule>
      */
     public function reviewRulesForHousehold(string $householdId): array;
+
+    public function latestUndoableReviewBatch(string $householdId): ?FinanceReviewBatch;
 }

@@ -2,6 +2,7 @@
 
 namespace App\Expenses\Application\Command;
 
+use App\Expenses\Domain\Model\FinanceReviewBatch;
 use App\Expenses\Domain\Model\FinanceReviewRule;
 use App\Expenses\Domain\Repository\ExpenseRepository;
 use App\Shared\Application\Command\CommandHandler;
@@ -38,6 +39,7 @@ final readonly class ApplyFinanceReviewRuleHandler implements CommandHandler
         $monthStart = new DateTimeImmutable($command->month . '-01 00:00:00');
         $monthEnd = $monthStart->modify('last day of this month')->setTime(23, 59, 59);
         $appliedCount = 0;
+        $batchItems = [];
 
         if ($command->targetType === 'expense') {
             $category = $this->expenses->getCategory($command->householdId, (string) $categoryId);
@@ -46,6 +48,12 @@ final readonly class ApplyFinanceReviewRuleHandler implements CommandHandler
                     continue;
                 }
 
+                $batchItems[] = [
+                    'id' => $expense->id(),
+                    'categoryId' => $expense->category()->id(),
+                    'reviewStatus' => $expense->reviewStatus(),
+                    'reviewReason' => $expense->reviewReason(),
+                ];
                 $expense->changeDetails($category, $expense->description(), $expense->amountCents(), $expense->spentOn(), $expense->paidByMemberId());
                 $expense->changeReview('reviewed');
                 $this->expenses->saveExpense($expense);
@@ -57,6 +65,12 @@ final readonly class ApplyFinanceReviewRuleHandler implements CommandHandler
                     continue;
                 }
 
+                $batchItems[] = [
+                    'id' => $entry->id(),
+                    'incomeKind' => $entry->incomeKind(),
+                    'reviewStatus' => $entry->reviewStatus(),
+                    'reviewReason' => $entry->reviewReason(),
+                ];
                 $entry->changeClassification((string) $incomeKind, 'reviewed');
                 $this->expenses->saveIncomeEntry($entry);
                 $appliedCount++;
@@ -67,6 +81,9 @@ final readonly class ApplyFinanceReviewRuleHandler implements CommandHandler
 
         $rule->markApplied();
         $this->expenses->saveReviewRule($rule);
+        if ($batchItems !== []) {
+            $this->expenses->saveReviewBatch(new FinanceReviewBatch((string) Uuid::new(), $command->householdId, $rule->id(), $command->targetType, $matchText, $batchItems));
+        }
 
         return ['id' => $rule->id(), 'appliedCount' => $appliedCount];
     }

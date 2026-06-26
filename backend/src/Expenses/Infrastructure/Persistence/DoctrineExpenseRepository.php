@@ -5,6 +5,7 @@ namespace App\Expenses\Infrastructure\Persistence;
 use App\Expenses\Domain\Model\Expense;
 use App\Expenses\Domain\Model\ExpenseBudget;
 use App\Expenses\Domain\Model\ExpenseCategory;
+use App\Expenses\Domain\Model\FinanceReviewBatch;
 use App\Expenses\Domain\Model\FinanceReviewRule;
 use App\Expenses\Domain\Model\IncomeEntry;
 use App\Expenses\Domain\Model\IncomeSource;
@@ -67,6 +68,12 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
     public function saveReviewRule(FinanceReviewRule $rule): void
     {
         $this->entityManager->persist($rule);
+        $this->entityManager->flush();
+    }
+
+    public function saveReviewBatch(FinanceReviewBatch $batch): void
+    {
+        $this->entityManager->persist($batch);
         $this->entityManager->flush();
     }
 
@@ -304,6 +311,19 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
             ->orderBy('rule.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+    }
+
+    public function latestUndoableReviewBatch(string $householdId): ?FinanceReviewBatch
+    {
+        return $this->entityManager->getRepository(FinanceReviewBatch::class)
+            ->createQueryBuilder('batch')
+            ->andWhere('batch.householdId = :householdId')
+            ->andWhere('batch.undoneAt IS NULL')
+            ->setParameter('householdId', $householdId)
+            ->orderBy('batch.createdAt', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     private function applyOptionalFilters(\Doctrine\ORM\QueryBuilder $builder, ?string $categoryId, ?string $paidByMemberId): void

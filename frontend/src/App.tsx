@@ -156,6 +156,13 @@ type ExpenseOverview = {
     expenseNeedsReviewCount: number
     incomeNeedsReviewCount: number
     excludedIncomeTotal: number
+    lastAppliedBatch: {
+      id: string
+      targetType: 'expense' | 'income'
+      matchText: string
+      appliedCount: number
+      createdAt: string
+    } | null
     expenseCandidates: ExpenseItem[]
     incomeCandidates: IncomeEntry[]
   }
@@ -968,6 +975,22 @@ function App() {
     }
   }
 
+  const undoLastFinanceReviewBatch = async () => {
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ undoneCount: number }>(`/api/households/${household.id}/expenses/review-batches/undo-last`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      await loadExpenseOverview(household.id)
+      await loadDashboard()
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
   const saveBudgets = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!household) return
@@ -1464,7 +1487,14 @@ function App() {
     { targetType: 'expense' as const, matchText: 'OBI', label: 'OBI to Other', category: categoryBySlug('other'), incomeKind: null, count: countExpenseMatches('OBI') },
     { targetType: 'income' as const, matchText: 'Amazon', label: 'Amazon positives to Refund', category: null, incomeKind: 'refund' as const, count: countIncomeMatches('Amazon') },
     { targetType: 'income' as const, matchText: 'Przelew środków', label: 'Internal transfers to Transfer', category: null, incomeKind: 'transfer' as const, count: countIncomeMatches('Przelew środków') },
-  ].filter((rule) => rule.count > 0 && (rule.targetType === 'income' || rule.category))
+  ].map((rule) => {
+    const rows = rule.targetType === 'expense'
+      ? (financeReview?.expenseCandidates ?? []).filter((expense) => expense.description.toLocaleLowerCase('pl-PL').includes(rule.matchText.toLocaleLowerCase('pl-PL')))
+      : (financeReview?.incomeCandidates ?? []).filter((entry) => entry.description.toLocaleLowerCase('pl-PL').includes(rule.matchText.toLocaleLowerCase('pl-PL')))
+    const total = rows.reduce((sum, row) => sum + row.amount, 0)
+
+    return { ...rule, rows, total }
+  }).filter((rule) => rule.count > 0 && (rule.targetType === 'income' || rule.category))
 
   const openAttentionTarget = (item: Dashboard['attention'][number]) => {
     setActivePage(item.targetPage)
@@ -2051,9 +2081,16 @@ function App() {
               </div>
 
               <section className="bulk-rule-panel" aria-label="Suggested bulk review rules">
-                <div>
-                  <p className="eyebrow">Bulk Cleanup</p>
-                  <h4>Suggested rules</h4>
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="eyebrow">Bulk Cleanup</p>
+                    <h4>Merchant groups</h4>
+                  </div>
+                  {financeReview?.lastAppliedBatch && (
+                    <button type="button" onClick={undoLastFinanceReviewBatch} disabled={setupState === 'saving'}>
+                      Undo {financeReview.lastAppliedBatch.matchText}
+                    </button>
+                  )}
                 </div>
                 <div className="bulk-rule-list">
                   {suggestedFinanceRules.length > 0 ? (
@@ -2061,7 +2098,10 @@ function App() {
                       <article key={`${rule.targetType}-${rule.matchText}`}>
                         <div>
                           <strong>{rule.label}</strong>
-                          <small>{rule.count} matching review row{rule.count === 1 ? '' : 's'} this month</small>
+                          <small>{rule.count} row{rule.count === 1 ? '' : 's'} · {pln(rule.total)}</small>
+                          <em>
+                            {rule.rows.slice(0, 3).map((row) => `${row.description} ${pln(row.amount)}`).join(' · ')}
+                          </em>
                         </div>
                         <button
                           type="button"

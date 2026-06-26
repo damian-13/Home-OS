@@ -951,7 +951,7 @@ h3 {
 
 .bulk-rule-list article {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
@@ -962,13 +962,23 @@ h3 {
 }
 
 .bulk-rule-list strong,
-.bulk-rule-list small {
+.bulk-rule-list small,
+.bulk-rule-list em {
   display: block;
 }
 
 .bulk-rule-list small {
   color: #66748a;
   font-size: 12px;
+}
+
+.bulk-rule-list em {
+  max-width: 520px;
+  margin-top: 5px;
+  color: #66748a;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
 }
 
 .bulk-rule-list button {

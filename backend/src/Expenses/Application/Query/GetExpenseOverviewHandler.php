@@ -6,6 +6,7 @@ use App\Expenses\Application\DefaultExpenseCategories;
 use App\Expenses\Application\Dto\ExpenseCategoryView;
 use App\Expenses\Application\Dto\ExpenseOverviewView;
 use App\Expenses\Application\Dto\ExpenseView;
+use App\Expenses\Application\Dto\FinanceReviewBatchView;
 use App\Expenses\Application\Dto\FinanceReviewRuleView;
 use App\Expenses\Application\Dto\IncomeEntryView;
 use App\Expenses\Application\Dto\IncomeSourceView;
@@ -165,6 +166,7 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
         }
         $plannedBillsCents = array_sum(array_map(static fn ($bill) => $bill->amountCents(), $recurringBills));
         $incomeForProjectionCents = max($expectedIncomeCents, $actualIncomeCents);
+        $latestUndoableBatch = $this->expenses->latestUndoableReviewBatch($query->householdId);
         $expenseReviewCandidates = array_values(array_filter(
             $monthExpenses,
             static fn ($expense) => $expense->reviewStatus() === 'needs_review',
@@ -207,6 +209,7 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
                 'expenseNeedsReviewCount' => count($expenseReviewCandidates),
                 'incomeNeedsReviewCount' => count($incomeReviewCandidates),
                 'excludedIncomeTotal' => $transferLikeIncomeCents / 100,
+                'lastAppliedBatch' => $latestUndoableBatch ? FinanceReviewBatchView::fromBatch($latestUndoableBatch) : null,
                 'expenseCandidates' => array_map(static fn ($expense) => ExpenseView::fromExpense($expense), array_slice($expenseReviewCandidates, 0, 12)),
                 'incomeCandidates' => array_map(static fn ($entry) => IncomeEntryView::fromEntry($entry), array_slice($incomeReviewCandidates, 0, 12)),
             ],
