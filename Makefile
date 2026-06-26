@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: setup start stop logs backend-shell frontend-shell
+.PHONY: setup start stop logs backend-shell frontend-shell test-backend-smoke
 
 setup:
 	cp -n .env.example .env || true
@@ -20,3 +20,6 @@ backend-shell:
 
 frontend-shell:
 	docker compose run --rm frontend sh
+
+test-backend-smoke:
+	docker compose exec -T backend php tests/api_smoke.php
