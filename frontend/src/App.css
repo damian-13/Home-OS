@@ -407,6 +407,114 @@ h3 {
   line-height: 1.45;
 }
 
+.daily-command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+  gap: 14px;
+}
+
+.daily-command-card {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 42px rgba(39, 55, 88, 0.1);
+}
+
+.quick-expense-card {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 255, 247, 0.96) 100%);
+}
+
+.daily-command-card h2 {
+  margin-top: 4px;
+  color: #14213d;
+}
+
+.daily-command-card p:not(.eyebrow) {
+  max-width: 620px;
+  color: #58677e;
+  line-height: 1.48;
+}
+
+.dashboard-expense-form {
+  grid-template-columns: minmax(220px, 1.25fr) minmax(120px, 0.55fr) minmax(160px, 0.8fr);
+  align-items: end;
+}
+
+.dashboard-expense-form label:nth-child(4),
+.dashboard-expense-form label:nth-child(5) {
+  grid-column: span 1;
+}
+
+.dashboard-expense-form button {
+  min-width: 150px;
+}
+
+.daily-action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.daily-action-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 13px 14px;
+  border: 1px solid #d8e0ee;
+  border-left: 7px solid #18a67a;
+  border-radius: 8px;
+  background: #f7f9ff;
+  color: #172033;
+  cursor: pointer;
+  text-align: left;
+}
+
+.daily-action-item.warning {
+  border-left-color: #f59e0b;
+  background: #fff8e8;
+}
+
+.daily-action-item.danger {
+  border-left-color: #e11d48;
+  background: #fff1f3;
+}
+
+.daily-action-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(36, 87, 255, 0.12);
+}
+
+.daily-action-item strong,
+.daily-action-item small {
+  display: block;
+}
+
+.daily-action-item strong {
+  color: #14213d;
+  font-size: 15px;
+}
+
+.daily-action-item small {
+  margin-top: 4px;
+  color: #66748a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.daily-action-item b {
+  flex: 0 0 auto;
+  color: #2142d8;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .focus-panel,
 .setup-panel {
   display: grid;
@@ -2486,6 +2594,7 @@ h3 {
   .expense-lists,
   .expense-visual-grid,
   .money-management-grid,
+  .daily-command-grid,
   .review-grid,
   .overview-alert-grid,
   .monthly-review-grid,
@@ -2512,6 +2621,10 @@ h3 {
   }
 
   .expense-form {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-expense-form {
     grid-template-columns: 1fr;
   }
 

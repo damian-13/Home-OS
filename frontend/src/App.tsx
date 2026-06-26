@@ -545,6 +545,11 @@ function App() {
     }
   }
 
+  const refreshExpenseAndDashboard = async (householdId: string) => {
+    await loadExpenseOverview(householdId)
+    await loadDashboard()
+  }
+
   useEffect(() => {
     if (currentUser) {
       loadExpenseOverview(currentUser.householdId).catch(() => setSetupState('error'))
@@ -666,7 +671,7 @@ function App() {
           paidByMemberId: expensePaidByMemberId || null,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setExpenseDescription('')
       setExpenseAmount('')
       setExpenseSpentOn(today)
@@ -697,7 +702,7 @@ function App() {
           paidByMemberId: billPaidByMemberId || null,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setBillName('')
       setBillAmount('')
       setOpenExpenseCreator(null)
@@ -736,7 +741,7 @@ function App() {
           paidByMemberId: editExpensePaidByMemberId || null,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setEditingExpenseId(null)
       setSetupState('idle')
     } catch {
@@ -753,7 +758,7 @@ function App() {
 
     try {
       await apiNoContent(`/api/households/${household.id}/expenses/${expenseId}`, { method: 'DELETE' })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setEditingExpenseId((current) => (current === expenseId ? null : current))
       setSetupState('idle')
     } catch {
@@ -790,7 +795,7 @@ function App() {
           paidByMemberId: editBillPaidByMemberId || null,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setEditingBillId(null)
       setSetupState('idle')
     } catch {
@@ -807,7 +812,7 @@ function App() {
 
     try {
       await apiNoContent(`/api/households/${household.id}/expenses/recurring-bills/${billId}`, { method: 'DELETE' })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setEditingBillId((current) => (current === billId ? null : current))
       setSetupState('idle')
     } catch {
@@ -828,7 +833,7 @@ function App() {
           memberId: incomeSourceMemberId || null,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setIncomeSourceName('')
       setIncomeSourceAmount('')
       setOpenMoneyPanel(null)
@@ -843,7 +848,7 @@ function App() {
     setSetupState('saving')
     try {
       await apiNoContent(`/api/households/${household.id}/expenses/income-sources/${sourceId}`, { method: 'DELETE' })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -865,7 +870,7 @@ function App() {
           receivedOn: incomeEntryReceivedOn,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setIncomeEntryDescription('')
       setIncomeEntryAmount('')
       setIncomeEntryReceivedOn(today)
@@ -881,7 +886,7 @@ function App() {
     setSetupState('saving')
     try {
       await apiNoContent(`/api/households/${household.id}/expenses/income-entries/${entryId}`, { method: 'DELETE' })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -904,7 +909,7 @@ function App() {
           reviewReason: updates.reviewReason ?? expense.reviewReason,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -941,7 +946,7 @@ function App() {
           reviewReason: updates.reviewReason ?? entry.reviewReason,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -967,8 +972,7 @@ function App() {
           incomeKind,
         }),
       })
-      await loadExpenseOverview(household.id)
-      await loadDashboard()
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -983,8 +987,7 @@ function App() {
         method: 'POST',
         body: JSON.stringify({}),
       })
-      await loadExpenseOverview(household.id)
-      await loadDashboard()
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -1002,7 +1005,7 @@ function App() {
           budgets: Object.entries(budgetDrafts).map(([categoryId, amount]) => ({ categoryId, amount: amount === '' ? 0 : Number(amount) })),
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setOpenMoneyPanel(null)
       setSetupState('idle')
     } catch {
@@ -1022,7 +1025,7 @@ function App() {
           amount: amount ?? null,
         }),
       })
-      await loadExpenseOverview(household.id)
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -1523,6 +1526,12 @@ function App() {
     }
   }
 
+  const openExpensesSection = (section: ExpenseSection) => {
+    setActivePage('expenses')
+    setExpenseSection(section)
+    window.location.hash = 'expenses'
+  }
+
   const modules = [
     {
       title: 'Home',
@@ -1547,6 +1556,40 @@ function App() {
       value: dashboard.summary.documentsStored,
       label: 'stored',
       detail: 'Contracts, manuals, invoices, lab PDFs',
+    },
+  ]
+
+  const dailyActionCards = [
+    {
+      title: 'Review imported money',
+      detail: `${financeReview?.needsReviewCount ?? 0} row${(financeReview?.needsReviewCount ?? 0) === 1 ? '' : 's'} need trust check`,
+      tone: (financeReview?.needsReviewCount ?? 0) > 0 ? 'warning' : 'good',
+      action: 'Open review',
+      onClick: () => openExpensesSection('import-review'),
+    },
+    {
+      title: 'Bills this month',
+      detail: `${expenseOverview?.billChecklist.overdue.length ?? 0} overdue · ${expenseOverview?.billChecklist.upcoming.length ?? 0} upcoming`,
+      tone: hasOverdueBills ? 'danger' : plannedBillCount > 0 ? 'warning' : 'good',
+      action: 'Open bills',
+      onClick: () => openExpensesSection('bills'),
+    },
+    {
+      title: 'Health signals',
+      detail: `${dashboard.summary.healthOutOfRange} out of range · ${needsReviewMarkers.length} to clean`,
+      tone: dashboard.summary.healthOutOfRange > 0 ? 'danger' : needsReviewMarkers.length > 0 ? 'warning' : 'good',
+      action: 'Open health',
+      onClick: () => {
+        setActivePage('health')
+        window.location.hash = 'health'
+      },
+    },
+    {
+      title: 'Monthly money review',
+      detail: monthResultLabel,
+      tone: monthResultTone,
+      action: 'Open checklist',
+      onClick: () => openExpensesSection('monthly-review'),
     },
   ]
 
@@ -1769,6 +1812,85 @@ function App() {
                   <p>{module.detail}</p>
                 </article>
               ))}
+            </section>
+
+            <section className="daily-command-grid" aria-label="Daily command center">
+              <article className="daily-command-card quick-expense-card">
+                <div>
+                  <p className="eyebrow">Fast Capture</p>
+                  <h2>Add expense in under 10 seconds.</h2>
+                  <p>Capture the cost now. You can clean categories and reports later in review.</p>
+                </div>
+
+                <form className="setup-form dashboard-expense-form" onSubmit={addExpense}>
+                  <label>
+                    What was it?
+                    <input
+                      value={expenseDescription}
+                      onChange={(event) => setExpenseDescription(event.target.value)}
+                      placeholder="Coffee, pharmacy, groceries..."
+                      required
+                    />
+                  </label>
+                  <label>
+                    Amount
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={expenseAmount}
+                      onChange={(event) => setExpenseAmount(event.target.value)}
+                      placeholder="0.00"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Category
+                    <select value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required>
+                      {(expenseOverview?.categories ?? []).map((category) => (
+                        <option value={category.id} key={category.id}>{category.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Paid by
+                    <select value={expensePaidByMemberId} onChange={(event) => setExpensePaidByMemberId(event.target.value)}>
+                      <option value="">Household</option>
+                      {(household?.members ?? []).map((member) => (
+                        <option value={member.id} key={member.id}>{member.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Date
+                    <input type="date" value={expenseSpentOn} onChange={(event) => setExpenseSpentOn(event.target.value)} required />
+                  </label>
+                  <button type="submit" disabled={setupState === 'saving' || !expenseOverview?.categories.length}>
+                    {setupState === 'saving' ? 'Saving...' : 'Save expense'}
+                  </button>
+                </form>
+              </article>
+
+              <article className="daily-command-card">
+                <div>
+                  <p className="eyebrow">Today Flow</p>
+                  <h2>Do the smallest useful next step.</h2>
+                  <p>These shortcuts keep the daily habit focused on review, bills, health, and the monthly result.</p>
+                </div>
+
+                <div className="daily-action-list">
+                  {dailyActionCards.map((item) => (
+                    <button className={`daily-action-item ${item.tone}`} type="button" onClick={item.onClick} key={item.title}>
+                      <span>
+                        <strong>{item.title}</strong>
+                        <small>{item.detail}</small>
+                      </span>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+              </article>
             </section>
 
             <section className="focus-panel">
