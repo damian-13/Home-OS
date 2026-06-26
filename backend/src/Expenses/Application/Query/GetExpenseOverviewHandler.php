@@ -40,7 +40,7 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
         $trendStart = $monthStart->modify('-11 months');
         $monthExpenses = $this->expenses->expensesBetween($query->householdId, $monthStart, $monthEnd, $categoryId, $paidByMemberId);
         $trendExpenses = $this->expenses->expensesBetween($query->householdId, $trendStart, $monthEnd);
-        $latestExpenses = $this->expenses->latestExpenses($query->householdId, $monthStart, $monthEnd, $categoryId, $paidByMemberId);
+        $latestExpenses = $this->expenses->latestExpenses($query->householdId, $monthStart, $monthEnd, $categoryId, $paidByMemberId, 250);
         $recurringBills = $this->expenses->recurringBillsForHousehold($query->householdId, $categoryId, $paidByMemberId);
         $incomeSources = $this->expenses->incomeSourcesForHousehold($query->householdId);
         $incomeEntries = $this->expenses->incomeEntriesBetween($query->householdId, $monthStart, $monthEnd);

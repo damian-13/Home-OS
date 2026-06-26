@@ -1417,6 +1417,10 @@ h3 {
   margin-top: 3px;
 }
 
+.bill-edit-form {
+  grid-column: 2 / -1;
+}
+
 .expense-summary-grid article {
   display: grid;
   gap: 8px;
@@ -1570,6 +1574,170 @@ h3 {
   display: grid;
   align-content: start;
   gap: 12px;
+}
+
+.transaction-table-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(39, 55, 88, 0.08);
+}
+
+.transaction-table-panel .panel-heading-row > strong {
+  color: #14213d;
+  font-size: 24px;
+  white-space: nowrap;
+}
+
+.transaction-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+}
+
+.transaction-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.transaction-table th,
+.transaction-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #edf1f7;
+  text-align: left;
+  vertical-align: top;
+}
+
+.transaction-table th {
+  background: #f7f9ff;
+  color: #526178;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.transaction-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.transaction-table td {
+  color: #172033;
+  font-size: 14px;
+}
+
+.transaction-table td strong,
+.transaction-table td small {
+  display: block;
+}
+
+.transaction-table td strong {
+  max-width: 480px;
+  overflow-wrap: anywhere;
+}
+
+.transaction-table td small {
+  margin-top: 4px;
+  color: #e75d1b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.transaction-table .amount-column {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 900;
+}
+
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #d8e0ee;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.category-pill i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.transaction-edit-form {
+  grid-column: auto;
+  min-width: min(720px, 78vw);
+  margin-top: 10px;
+}
+
+.transaction-income-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.income-row-list {
+  display: grid;
+  gap: 8px;
+}
+
+.income-row-list article {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e3e9f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.income-row-list article > span {
+  width: 10px;
+  height: 30px;
+  border-radius: 999px;
+}
+
+.income-row-list strong,
+.income-row-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.income-row-list small {
+  margin-top: 3px;
+  color: #66748a;
+  font-size: 12px;
+}
+
+.income-row-list b {
+  white-space: nowrap;
+}
+
+.income-row-list button {
+  min-height: 34px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #c92835;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 11px;
 }
 
 .money-list {

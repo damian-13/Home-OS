@@ -2424,73 +2424,6 @@ function App() {
             </section>
             )}
 
-            {expenseSection === 'transactions' && (
-            <section className="money-management-grid" aria-label="Monthly money control">
-              <section className="money-control-panel">
-                <div className="panel-heading-row">
-                  <div>
-                    <p className="eyebrow">Income</p>
-                    <h3>Monthly income</h3>
-                  </div>
-                  <div className="row-actions">
-                    <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'income-source' ? null : 'income-source')}>
-                      Add recurring
-                    </button>
-                    <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'income-entry' ? null : 'income-entry')}>
-                      Add one-time
-                    </button>
-                  </div>
-                </div>
-                {openMoneyPanel === 'income-source' && (
-                  <form className="setup-form money-mini-form" onSubmit={addIncomeSource}>
-                    <label>Name<input value={incomeSourceName} onChange={(event) => setIncomeSourceName(event.target.value)} required /></label>
-                    <label>Amount PLN<input type="number" min="0.01" step="0.01" value={incomeSourceAmount} onChange={(event) => setIncomeSourceAmount(event.target.value)} required /></label>
-                    <label>Member<select value={incomeSourceMemberId} onChange={(event) => setIncomeSourceMemberId(event.target.value)}><option value="">Household</option>{(household?.members ?? []).map((member) => <option value={member.id} key={member.id}>{member.displayName}</option>)}</select></label>
-                    <button type="submit" disabled={setupState === 'saving'}>Save income</button>
-                  </form>
-                )}
-                {openMoneyPanel === 'income-entry' && (
-                  <form className="setup-form money-mini-form" onSubmit={addIncomeEntry}>
-                    <label>Description<input value={incomeEntryDescription} onChange={(event) => setIncomeEntryDescription(event.target.value)} required /></label>
-                    <label>Amount PLN<input type="number" min="0.01" step="0.01" value={incomeEntryAmount} onChange={(event) => setIncomeEntryAmount(event.target.value)} required /></label>
-                    <label>Source<select value={incomeEntrySourceId} onChange={(event) => setIncomeEntrySourceId(event.target.value)}><option value="">One-time</option>{(expenseOverview?.incomeSources ?? []).map((source) => <option value={source.id} key={source.id}>{source.name}</option>)}</select></label>
-                    <label>Member<select value={incomeEntryMemberId} onChange={(event) => setIncomeEntryMemberId(event.target.value)}><option value="">Household</option>{(household?.members ?? []).map((member) => <option value={member.id} key={member.id}>{member.displayName}</option>)}</select></label>
-                    <label>Date<input type="date" value={incomeEntryReceivedOn} onChange={(event) => setIncomeEntryReceivedOn(event.target.value)} required /></label>
-                    <button type="submit" disabled={setupState === 'saving'}>Save entry</button>
-                  </form>
-                )}
-                <div className="money-list compact">
-                  {(expenseOverview?.incomeSources ?? []).map((source) => (
-                    <article className="money-item" key={source.id}>
-                      <span style={{ background: '#18a67a' }}></span>
-                      <div><strong>{source.name}</strong><small>{memberNameById(source.memberId)} · recurring</small></div>
-                      <b>{pln(source.amount)}</b>
-                      <button type="button" onClick={() => deleteIncomeSource(source.id)}>Delete</button>
-                    </article>
-                  ))}
-                  {(expenseOverview?.incomeEntries ?? []).map((entry) => (
-                    <article className="money-item" key={entry.id}>
-                      <span style={{ background: '#0f766e' }}></span>
-                      <div><strong>{entry.description}</strong><small>{memberNameById(entry.memberId)} · {entry.receivedOn}</small></div>
-                      <b>{pln(entry.amount)}</b>
-                      <button type="button" onClick={() => deleteIncomeEntry(entry.id)}>Delete</button>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section className="money-control-panel transaction-help-panel">
-                <div className="panel-heading-row">
-                  <div>
-                    <p className="eyebrow">Data</p>
-                    <h3>Transactions workspace</h3>
-                  </div>
-                </div>
-                <p className="panel-copy">Use this area for daily expenses and one-time income. Imported bank rows can be cleaned separately in Import Review.</p>
-              </section>
-            </section>
-            )}
-
             {expenseSection === 'budgets' && (
             <section className="money-control-panel">
               <div className="panel-heading-row">
@@ -2540,7 +2473,60 @@ function App() {
                       <button type="button" onClick={() => updateBillPayment(item.bill.id, 'paid', item.amount)}>Mark paid</button>
                       <button type="button" onClick={() => updateBillPayment(item.bill.id, 'skipped', item.amount)}>Skip</button>
                       <button type="button" onClick={() => updateBillPayment(item.bill.id, 'planned', item.amount)}>Plan</button>
+                      <button type="button" onClick={() => startEditBill(item.bill)}>Edit bill</button>
+                      <button type="button" onClick={() => deleteRecurringBill(item.bill.id)}>Delete</button>
                     </div>
+                    {editingBillId === item.bill.id && (
+                      <form className="inline-edit-form bill-edit-form" onSubmit={updateRecurringBill}>
+                        <label>
+                          Name
+                          <input value={editBillName} onChange={(event) => setEditBillName(event.target.value)} required />
+                        </label>
+                        <label>
+                          Amount PLN
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={editBillAmount}
+                            onChange={(event) => setEditBillAmount(event.target.value)}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Category
+                          <select value={editBillCategoryId} onChange={(event) => setEditBillCategoryId(event.target.value)} required>
+                            {(expenseOverview?.categories ?? []).map((category) => (
+                              <option value={category.id} key={category.id}>{category.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Paid by
+                          <select value={editBillPaidByMemberId} onChange={(event) => setEditBillPaidByMemberId(event.target.value)}>
+                            <option value="">Household</option>
+                            {(household?.members ?? []).map((member) => (
+                              <option value={member.id} key={member.id}>{member.displayName}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Due day
+                          <input
+                            type="number"
+                            min="1"
+                            max="31"
+                            value={editBillDueDay}
+                            onChange={(event) => setEditBillDueDay(event.target.value)}
+                            required
+                          />
+                        </label>
+                        <div className="inline-edit-actions">
+                          <button type="submit" disabled={setupState === 'saving'}>Save</button>
+                          <button type="button" onClick={() => setEditingBillId(null)}>Cancel</button>
+                        </div>
+                      </form>
+                    )}
                   </article>
                 )) : <p className="empty-state">No recurring bills yet.</p>}
               </div>
@@ -2671,154 +2657,162 @@ function App() {
               </section>
             )}
 
-            <div className="expense-lists">
-              <section>
-                <h3>Latest expenses</h3>
-                <div className="money-list">
-                  {(expenseOverview?.latestExpenses ?? []).length > 0 ? (
-                    expenseOverview?.latestExpenses.map((expense) => (
-                      <article className="money-item editable" key={expense.id}>
-                        <span style={{ background: expense.category.color }}></span>
-                        <div className="money-item-main">
-                          <div>
-                            <strong>{expense.description}</strong>
-                            <small>{expense.category.name} · {memberNameById(expense.paidByMemberId)} · {expense.spentOn}</small>
-                          </div>
-                          <div className="row-actions">
-                            <button type="button" onClick={() => startEditExpense(expense)}>Edit</button>
-                            <button type="button" onClick={() => deleteExpense(expense.id)}>Delete</button>
-                          </div>
-                        </div>
-                        <b>{expense.amount.toLocaleString('pl-PL')} PLN</b>
-                        {editingExpenseId === expense.id && (
-                          <form className="inline-edit-form" onSubmit={updateExpense}>
-                            <label>
-                              Description
-                              <input value={editExpenseDescription} onChange={(event) => setEditExpenseDescription(event.target.value)} required />
-                            </label>
-                            <label>
-                              Amount PLN
-                              <input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value={editExpenseAmount}
-                                onChange={(event) => setEditExpenseAmount(event.target.value)}
-                                required
-                              />
-                            </label>
-                            <label>
-                              Category
-                              <select value={editExpenseCategoryId} onChange={(event) => setEditExpenseCategoryId(event.target.value)} required>
-                                {(expenseOverview?.categories ?? []).map((category) => (
-                                  <option value={category.id} key={category.id}>{category.name}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              Paid by
-                              <select value={editExpensePaidByMemberId} onChange={(event) => setEditExpensePaidByMemberId(event.target.value)}>
-                                <option value="">Household</option>
-                                {(household?.members ?? []).map((member) => (
-                                  <option value={member.id} key={member.id}>{member.displayName}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              Date
-                              <input type="date" value={editExpenseSpentOn} onChange={(event) => setEditExpenseSpentOn(event.target.value)} required />
-                            </label>
-                            <div className="inline-edit-actions">
-                              <button type="submit" disabled={setupState === 'saving'}>Save</button>
-                              <button type="button" onClick={() => setEditingExpenseId(null)}>Cancel</button>
-                            </div>
-                          </form>
-                        )}
-                      </article>
-                    ))
-                  ) : (
-                    <p className="empty-state">No expenses yet.</p>
-                  )}
+            <section className="transaction-table-panel">
+              <div className="panel-heading-row">
+                <div>
+                  <p className="eyebrow">Expense Data</p>
+                  <h3>Filtered expenses</h3>
+                  <p className="panel-copy">
+                    Showing {(expenseOverview?.latestExpenses ?? []).length} expense{(expenseOverview?.latestExpenses ?? []).length === 1 ? '' : 's'} for {expenseFilterMonth}
+                    {expenseFilterCategoryId ? ` · ${(expenseOverview?.categories ?? []).find((category) => category.id === expenseFilterCategoryId)?.name ?? 'selected category'}` : ' · all categories'}
+                    {expenseFilterPaidByMemberId ? ` · ${memberNameById(expenseFilterPaidByMemberId)}` : ''}.
+                  </p>
                 </div>
-              </section>
+                <strong>{pln(expenseOverview?.spentTotal ?? 0)}</strong>
+              </div>
 
-              <section>
-                <h3>Recurring bills</h3>
-                <div className="money-list">
-                  {(expenseOverview?.recurringBills ?? []).length > 0 ? (
-                    expenseOverview?.recurringBills.map((bill) => (
-                      <article className="money-item editable" key={bill.id}>
-                        <span style={{ background: bill.category.color }}></span>
-                        <div className="money-item-main">
-                          <div>
-                            <strong>{bill.name}</strong>
-                            <small>{bill.category.name} · due day {bill.dueDay} · {memberNameById(bill.paidByMemberId)}</small>
-                          </div>
-                          <div className="row-actions">
-                            <button type="button" onClick={() => startEditBill(bill)}>Edit</button>
-                            <button type="button" onClick={() => deleteRecurringBill(bill.id)}>Delete</button>
-                          </div>
-                        </div>
-                        <b>{bill.amount.toLocaleString('pl-PL')} PLN</b>
-                        {editingBillId === bill.id && (
-                          <form className="inline-edit-form" onSubmit={updateRecurringBill}>
-                            <label>
-                              Name
-                              <input value={editBillName} onChange={(event) => setEditBillName(event.target.value)} required />
-                            </label>
-                            <label>
-                              Amount PLN
-                              <input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value={editBillAmount}
-                                onChange={(event) => setEditBillAmount(event.target.value)}
-                                required
-                              />
-                            </label>
-                            <label>
-                              Category
-                              <select value={editBillCategoryId} onChange={(event) => setEditBillCategoryId(event.target.value)} required>
-                                {(expenseOverview?.categories ?? []).map((category) => (
-                                  <option value={category.id} key={category.id}>{category.name}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              Paid by
-                              <select value={editBillPaidByMemberId} onChange={(event) => setEditBillPaidByMemberId(event.target.value)}>
-                                <option value="">Household</option>
-                                {(household?.members ?? []).map((member) => (
-                                  <option value={member.id} key={member.id}>{member.displayName}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              Due day
-                              <input
-                                type="number"
-                                min="1"
-                                max="31"
-                                value={editBillDueDay}
-                                onChange={(event) => setEditBillDueDay(event.target.value)}
-                                required
-                              />
-                            </label>
-                            <div className="inline-edit-actions">
-                              <button type="submit" disabled={setupState === 'saving'}>Save</button>
-                              <button type="button" onClick={() => setEditingBillId(null)}>Cancel</button>
+              {(expenseOverview?.latestExpenses ?? []).length > 0 ? (
+                <div className="transaction-table-wrap">
+                  <table className="transaction-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Paid by</th>
+                        <th className="amount-column">Amount</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(expenseOverview?.latestExpenses ?? []).map((expense) => (
+                        <tr key={expense.id}>
+                          <td>{expense.spentOn}</td>
+                          <td>
+                            <strong>{expense.description}</strong>
+                            {expense.reviewStatus === 'needs_review' && <small>Needs review</small>}
+                          </td>
+                          <td>
+                            <span className="category-pill">
+                              <i style={{ background: expense.category.color }}></i>
+                              {expense.category.name}
+                            </span>
+                          </td>
+                          <td>{memberNameById(expense.paidByMemberId)}</td>
+                          <td className="amount-column">{pln(expense.amount)}</td>
+                          <td>
+                            <div className="row-actions">
+                              <button type="button" onClick={() => startEditExpense(expense)}>Edit</button>
+                              <button type="button" onClick={() => deleteExpense(expense.id)}>Delete</button>
                             </div>
-                          </form>
-                        )}
-                      </article>
-                    ))
-                  ) : (
-                    <p className="empty-state">No recurring bills yet.</p>
-                  )}
+                            {editingExpenseId === expense.id && (
+                              <form className="inline-edit-form transaction-edit-form" onSubmit={updateExpense}>
+                                <label>
+                                  Description
+                                  <input value={editExpenseDescription} onChange={(event) => setEditExpenseDescription(event.target.value)} required />
+                                </label>
+                                <label>
+                                  Amount PLN
+                                  <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    value={editExpenseAmount}
+                                    onChange={(event) => setEditExpenseAmount(event.target.value)}
+                                    required
+                                  />
+                                </label>
+                                <label>
+                                  Category
+                                  <select value={editExpenseCategoryId} onChange={(event) => setEditExpenseCategoryId(event.target.value)} required>
+                                    {(expenseOverview?.categories ?? []).map((category) => (
+                                      <option value={category.id} key={category.id}>{category.name}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label>
+                                  Paid by
+                                  <select value={editExpensePaidByMemberId} onChange={(event) => setEditExpensePaidByMemberId(event.target.value)}>
+                                    <option value="">Household</option>
+                                    {(household?.members ?? []).map((member) => (
+                                      <option value={member.id} key={member.id}>{member.displayName}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label>
+                                  Date
+                                  <input type="date" value={editExpenseSpentOn} onChange={(event) => setEditExpenseSpentOn(event.target.value)} required />
+                                </label>
+                                <div className="inline-edit-actions">
+                                  <button type="submit" disabled={setupState === 'saving'}>Save</button>
+                                  <button type="button" onClick={() => setEditingExpenseId(null)}>Cancel</button>
+                                </div>
+                              </form>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </section>
-            </div>
+              ) : (
+                <p className="empty-state">No expenses match the selected month, category, and paid-by filters.</p>
+              )}
+            </section>
+
+            <section className="transaction-income-panel">
+              <div className="panel-heading-row">
+                <div>
+                  <p className="eyebrow">Income</p>
+                  <h3>Income management</h3>
+                  <p className="panel-copy">Keep income separate from the expense table. Open these only when you need to add or remove income rows.</p>
+                </div>
+                <div className="row-actions">
+                  <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'income-source' ? null : 'income-source')}>
+                    Add recurring
+                  </button>
+                  <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'income-entry' ? null : 'income-entry')}>
+                    Add one-time
+                  </button>
+                </div>
+              </div>
+              {openMoneyPanel === 'income-source' && (
+                <form className="setup-form money-mini-form" onSubmit={addIncomeSource}>
+                  <label>Name<input value={incomeSourceName} onChange={(event) => setIncomeSourceName(event.target.value)} required /></label>
+                  <label>Amount PLN<input type="number" min="0.01" step="0.01" value={incomeSourceAmount} onChange={(event) => setIncomeSourceAmount(event.target.value)} required /></label>
+                  <label>Member<select value={incomeSourceMemberId} onChange={(event) => setIncomeSourceMemberId(event.target.value)}><option value="">Household</option>{(household?.members ?? []).map((member) => <option value={member.id} key={member.id}>{member.displayName}</option>)}</select></label>
+                  <button type="submit" disabled={setupState === 'saving'}>Save income</button>
+                </form>
+              )}
+              {openMoneyPanel === 'income-entry' && (
+                <form className="setup-form money-mini-form" onSubmit={addIncomeEntry}>
+                  <label>Description<input value={incomeEntryDescription} onChange={(event) => setIncomeEntryDescription(event.target.value)} required /></label>
+                  <label>Amount PLN<input type="number" min="0.01" step="0.01" value={incomeEntryAmount} onChange={(event) => setIncomeEntryAmount(event.target.value)} required /></label>
+                  <label>Source<select value={incomeEntrySourceId} onChange={(event) => setIncomeEntrySourceId(event.target.value)}><option value="">One-time</option>{(expenseOverview?.incomeSources ?? []).map((source) => <option value={source.id} key={source.id}>{source.name}</option>)}</select></label>
+                  <label>Member<select value={incomeEntryMemberId} onChange={(event) => setIncomeEntryMemberId(event.target.value)}><option value="">Household</option>{(household?.members ?? []).map((member) => <option value={member.id} key={member.id}>{member.displayName}</option>)}</select></label>
+                  <label>Date<input type="date" value={incomeEntryReceivedOn} onChange={(event) => setIncomeEntryReceivedOn(event.target.value)} required /></label>
+                  <button type="submit" disabled={setupState === 'saving'}>Save entry</button>
+                </form>
+              )}
+              <div className="income-row-list">
+                {(expenseOverview?.incomeSources ?? []).map((source) => (
+                  <article key={source.id}>
+                    <span style={{ background: '#18a67a' }}></span>
+                    <div><strong>{source.name}</strong><small>{memberNameById(source.memberId)} · recurring</small></div>
+                    <b>{pln(source.amount)}</b>
+                    <button type="button" onClick={() => deleteIncomeSource(source.id)}>Delete</button>
+                  </article>
+                ))}
+                {(expenseOverview?.incomeEntries ?? []).map((entry) => (
+                  <article key={entry.id}>
+                    <span style={{ background: '#0f766e' }}></span>
+                    <div><strong>{entry.description}</strong><small>{memberNameById(entry.memberId)} · {entry.receivedOn}</small></div>
+                    <b>{pln(entry.amount)}</b>
+                    <button type="button" onClick={() => deleteIncomeEntry(entry.id)}>Delete</button>
+                  </article>
+                ))}
+              </div>
+            </section>
             </>
             )}
 
