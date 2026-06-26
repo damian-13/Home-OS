@@ -2,6 +2,8 @@
 
 Ten plik jest szybkim kontekstem dla Codex/Claude/innych agentow pracujacych w tym repozytorium. Ma ograniczyc ponowna analize projektu i przypomniec najwazniejsze decyzje produktowe, techniczne oraz lokalne komendy.
 
+Kanoniczna roadmapa produktu i prac technicznych jest w `docs/development-roadmap.md`. Aktualizuj ja po istotnych sesjach developerskich, gdy zmienia sie zakres, priorytety albo status milestone.
+
 ## Projekt
 
 Home OS to prywatna aplikacja do zarzadzania domem i zyciem rodziny:
@@ -231,6 +233,7 @@ git push
 
 Mozliwe kolejne kroki, jesli uzytkownik pyta "co dalej":
 
+- sprawdzic `docs/development-roadmap.md` i wybrac najwyzszy element z backlogu,
 - uporzadkowac `frontend/src/App.tsx` przez wydzielenie modulow/komponentow,
 - dopracowac Health Review Center,
 - dodac UI importu finansow zamiast manualnego importu pliku,
