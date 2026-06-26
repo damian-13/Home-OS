@@ -1461,6 +1461,7 @@ function App() {
     { targetType: 'expense' as const, matchText: 'MOYA', label: 'MOYA to Transport', category: categoryBySlug('transport'), incomeKind: null, count: countExpenseMatches('MOYA') },
     { targetType: 'expense' as const, matchText: 'ORLEN', label: 'ORLEN to Transport', category: categoryBySlug('transport'), incomeKind: null, count: countExpenseMatches('ORLEN') },
     { targetType: 'expense' as const, matchText: 'Gmina', label: 'Gmina to Bills', category: categoryBySlug('bills'), incomeKind: null, count: countExpenseMatches('Gmina') },
+    { targetType: 'expense' as const, matchText: 'OBI', label: 'OBI to Other', category: categoryBySlug('other'), incomeKind: null, count: countExpenseMatches('OBI') },
     { targetType: 'income' as const, matchText: 'Amazon', label: 'Amazon positives to Refund', category: null, incomeKind: 'refund' as const, count: countIncomeMatches('Amazon') },
     { targetType: 'income' as const, matchText: 'Przelew środków', label: 'Internal transfers to Transfer', category: null, incomeKind: 'transfer' as const, count: countIncomeMatches('Przelew środków') },
   ].filter((rule) => rule.count > 0 && (rule.targetType === 'income' || rule.category))
