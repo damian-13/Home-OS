@@ -229,6 +229,7 @@ type MarkerFormRow = {
 }
 
 type AppPage = 'dashboard' | 'household' | 'expenses' | 'health' | 'documents'
+type ExpenseSection = 'overview' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
   app: 'Home OS',
@@ -322,6 +323,7 @@ function App() {
   const [setupState, setSetupState] = useState<'idle' | 'saving' | 'error'>('idle')
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [activePage, setActivePage] = useState<AppPage>('dashboard')
+  const [expenseSection, setExpenseSection] = useState<ExpenseSection>('overview')
   const [expenseDescription, setExpenseDescription] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
   const [expenseCategoryId, setExpenseCategoryId] = useState('')
@@ -1431,6 +1433,15 @@ function App() {
     { page: 'documents', label: 'Documents' },
   ]
 
+  const expenseSections: Array<{ section: ExpenseSection; label: string; meta: string }> = [
+    { section: 'overview', label: 'Overview', meta: 'Monthly status' },
+    { section: 'analytics', label: 'Analytics', meta: 'Graphs and trends' },
+    { section: 'transactions', label: 'Transactions', meta: 'Income and spending data' },
+    { section: 'import-review', label: 'Import Review', meta: `${financeReview?.needsReviewCount ?? 0} to check` },
+    { section: 'budgets', label: 'Budgets', meta: 'Category limits' },
+    { section: 'bills', label: 'Bills', meta: 'Recurring checklist' },
+  ]
+
   const pageTitles: Record<AppPage, { eyebrow: string; title: string; copy: string }> = {
     dashboard: {
       eyebrow: 'Today',
@@ -1732,6 +1743,7 @@ function App() {
               </div>
             </div>
 
+            {expenseSection === 'overview' && (
             <div className="money-control-grid">
               <article className="good">
                 <span>Income</span>
@@ -1759,6 +1771,7 @@ function App() {
                 <small>Month-end estimate</small>
               </article>
             </div>
+            )}
 
             <section className="expense-filters" aria-label="Expense filters">
               <label>
@@ -1795,6 +1808,57 @@ function App() {
               </button>
             </section>
 
+            <nav className="expense-section-tabs" aria-label="Expense sections">
+              {expenseSections.map((item) => (
+                <button
+                  type="button"
+                  className={expenseSection === item.section ? 'active' : ''}
+                  onClick={() => setExpenseSection(item.section)}
+                  key={item.section}
+                >
+                  <strong>{item.label}</strong>
+                  <span>{item.meta}</span>
+                </button>
+              ))}
+            </nav>
+
+            {expenseSection === 'overview' && (
+              <section className="expense-overview-panel">
+                <div className="overview-alert-grid">
+                  <article className={hasBudgetWarning ? 'danger' : 'good'}>
+                    <span>Budgets</span>
+                    <strong>{hasBudgetWarning ? 'Needs attention' : 'Looks calm'}</strong>
+                    <small>{(expenseOverview?.budgetUsage ?? []).filter((row) => row.overBudget).length} categories over budget</small>
+                  </article>
+                  <article className={hasOverdueBills ? 'danger' : 'good'}>
+                    <span>Bills</span>
+                    <strong>{hasOverdueBills ? 'Overdue' : 'On track'}</strong>
+                    <small>{expenseOverview?.billChecklist.overdue.length ?? 0} overdue this month</small>
+                  </article>
+                  <article className={(financeReview?.needsReviewCount ?? 0) > 0 ? 'warning' : 'good'}>
+                    <span>Import quality</span>
+                    <strong>{financeReview?.needsReviewCount ?? 0} to review</strong>
+                    <small>Imported rows before trusting reports</small>
+                  </article>
+                </div>
+
+                <section className="category-strip" aria-label="Spending by category">
+                  {(expenseOverview?.byCategory ?? []).length > 0 ? (
+                    expenseOverview?.byCategory.map((category) => (
+                      <article key={category.name}>
+                        <span style={{ background: category.color }}></span>
+                        <strong>{category.name}</strong>
+                        <small>{category.amount.toLocaleString('pl-PL')} PLN</small>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">Category totals will appear after you add expenses this month.</p>
+                  )}
+                </section>
+              </section>
+            )}
+
+            {expenseSection === 'analytics' && (
             <section className="expense-visual-grid" aria-label="Expense charts">
               <article className="expense-chart-card">
                 <div>
@@ -1871,7 +1935,9 @@ function App() {
                 </div>
               </article>
             </section>
+            )}
 
+            {expenseSection === 'import-review' && (
             <section className="finance-review-panel" aria-label="Imported transaction review">
               <div className="panel-heading-row">
                 <div>
@@ -1963,7 +2029,9 @@ function App() {
                 </section>
               </div>
             </section>
+            )}
 
+            {expenseSection === 'transactions' && (
             <section className="money-management-grid" aria-label="Monthly money control">
               <section className="money-control-panel">
                 <div className="panel-heading-row">
@@ -2018,36 +2086,50 @@ function App() {
                 </div>
               </section>
 
-              <section className="money-control-panel">
+              <section className="money-control-panel transaction-help-panel">
                 <div className="panel-heading-row">
                   <div>
-                    <p className="eyebrow">Budgets</p>
-                    <h3>Category limits</h3>
+                    <p className="eyebrow">Data</p>
+                    <h3>Transactions workspace</h3>
                   </div>
-                  <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'budgets' ? null : 'budgets')}>
-                    {openMoneyPanel === 'budgets' ? 'Close budgets' : 'Edit budgets'}
-                  </button>
                 </div>
-                {openMoneyPanel === 'budgets' && (
-                  <form className="budget-edit-grid" onSubmit={saveBudgets}>
-                    {(expenseOverview?.budgetUsage ?? []).map((row) => (
-                      <label key={row.category.id}>{row.category.name}<input type="number" min="0" step="0.01" value={budgetDrafts[row.category.id] ?? ''} onChange={(event) => setBudgetDrafts((drafts) => ({ ...drafts, [row.category.id]: event.target.value }))} /></label>
-                    ))}
-                    <button type="submit" disabled={setupState === 'saving'}>Save budgets</button>
-                  </form>
-                )}
-                <div className="budget-list">
-                  {(expenseOverview?.budgetUsage ?? []).map((row) => (
-                    <article className={row.overBudget ? 'over-budget' : ''} key={row.category.id}>
-                      <div><strong>{row.category.name}</strong><small>{pln(row.spent)} of {pln(row.budget)}</small></div>
-                      <div className="budget-bar"><span style={{ width: `${Math.min(100, row.percent)}%`, background: row.category.color }}></span></div>
-                      <b>{pln(row.remaining)}</b>
-                    </article>
-                  ))}
-                </div>
+                <p className="panel-copy">Use this area for daily expenses and one-time income. Imported bank rows can be cleaned separately in Import Review.</p>
               </section>
             </section>
+            )}
 
+            {expenseSection === 'budgets' && (
+            <section className="money-control-panel">
+              <div className="panel-heading-row">
+                <div>
+                  <p className="eyebrow">Budgets</p>
+                  <h3>Category limits</h3>
+                </div>
+                <button type="button" onClick={() => setOpenMoneyPanel(openMoneyPanel === 'budgets' ? null : 'budgets')}>
+                  {openMoneyPanel === 'budgets' ? 'Close budgets' : 'Edit budgets'}
+                </button>
+              </div>
+              {openMoneyPanel === 'budgets' && (
+                <form className="budget-edit-grid" onSubmit={saveBudgets}>
+                  {(expenseOverview?.budgetUsage ?? []).map((row) => (
+                    <label key={row.category.id}>{row.category.name}<input type="number" min="0" step="0.01" value={budgetDrafts[row.category.id] ?? ''} onChange={(event) => setBudgetDrafts((drafts) => ({ ...drafts, [row.category.id]: event.target.value }))} /></label>
+                  ))}
+                  <button type="submit" disabled={setupState === 'saving'}>Save budgets</button>
+                </form>
+              )}
+              <div className="budget-list">
+                {(expenseOverview?.budgetUsage ?? []).map((row) => (
+                  <article className={row.overBudget ? 'over-budget' : ''} key={row.category.id}>
+                    <div><strong>{row.category.name}</strong><small>{pln(row.spent)} of {pln(row.budget)}</small></div>
+                    <div className="budget-bar"><span style={{ width: `${Math.min(100, row.percent)}%`, background: row.category.color }}></span></div>
+                    <b>{pln(row.remaining)}</b>
+                  </article>
+                ))}
+              </div>
+            </section>
+            )}
+
+            {expenseSection === 'bills' && (
             <section className="money-control-panel">
               <div className="panel-heading-row">
                 <div>
@@ -2070,7 +2152,10 @@ function App() {
                 )) : <p className="empty-state">No recurring bills yet.</p>}
               </div>
             </section>
+            )}
 
+            {expenseSection === 'transactions' && (
+            <>
             <section className="expense-create-bar" aria-label="Add expense data">
               <div>
                 <h3>Add new data</h3>
@@ -2341,20 +2426,8 @@ function App() {
                 </div>
               </section>
             </div>
-
-            <section className="category-strip" aria-label="Spending by category">
-              {(expenseOverview?.byCategory ?? []).length > 0 ? (
-                expenseOverview?.byCategory.map((category) => (
-                  <article key={category.name}>
-                    <span style={{ background: category.color }}></span>
-                    <strong>{category.name}</strong>
-                    <small>{category.amount.toLocaleString('pl-PL')} PLN</small>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">Category totals will appear after you add expenses this month.</p>
-              )}
-            </section>
+            </>
+            )}
 
             {setupState === 'error' && <p className="form-error">Could not save expenses data.</p>}
           </section>
