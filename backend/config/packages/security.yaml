@@ -36,7 +36,7 @@ security:
         - { path: ^/api/auth/register, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/me, roles: PUBLIC_ACCESS }
-        - { path: ^/api/dashboard, roles: PUBLIC_ACCESS }
+        - { path: ^/api/dashboard, roles: ROLE_USER }
         - { path: ^/api, roles: ROLE_USER }
         # - { path: ^/admin, roles: ROLE_ADMIN }
         # - { path: ^/profile, roles: ROLE_USER }

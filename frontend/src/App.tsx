@@ -7,10 +7,22 @@ type Dashboard = {
   summary: {
     homeTasksDue: number
     monthlySpend: number
+    projectedBalance: number
+    financeReviewCount: number
     healthMarkersTracked: number
+    healthOutOfRange: number
     documentsStored: number
   }
-  attention: Array<{ label: string; area: string; due: string }>
+  attention: Array<{
+    id: string
+    area: 'expenses' | 'health'
+    severity: 'critical' | 'warning' | 'info'
+    title: string
+    detail: string
+    actionLabel: string
+    targetPage: AppPage
+    targetSection: ExpenseSection | null
+  }>
 }
 
 type HouseholdMember = {
@@ -237,7 +249,10 @@ const fallbackDashboard: Dashboard = {
   summary: {
     homeTasksDue: 0,
     monthlySpend: 0,
+    projectedBalance: 0,
+    financeReviewCount: 0,
     healthMarkersTracked: 0,
+    healthOutOfRange: 0,
     documentsStored: 0,
   },
   attention: [],
@@ -403,27 +418,15 @@ function App() {
     return () => window.removeEventListener('hashchange', readPageFromHash)
   }, [])
 
-  useEffect(() => {
-    fetch('/api/dashboard')
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Dashboard API failed')
-        }
-
-        return response.json() as Promise<Dashboard>
-      })
-      .then((data) => {
-        setDashboard(data)
-        setApiState('online')
-      })
-      .catch(() => {
-        setApiState('offline')
-      })
-  }, [])
+  const loadDashboard = async () => {
+    setDashboard(await apiJson<Dashboard>('/api/dashboard'))
+    setApiState('online')
+  }
 
   useEffect(() => {
     apiJson<{ user: CurrentUser | null }>('/api/auth/me')
       .then(({ user }) => {
+        setApiState('online')
         setCurrentUser(user)
 
         if (!user) {
@@ -433,6 +436,7 @@ function App() {
         window.localStorage.setItem(householdStorageKey, user.householdId)
         return Promise.all([
           apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
+          loadDashboard(),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
           loadHealthDocuments(user.householdId),
@@ -473,6 +477,7 @@ function App() {
       })
       const { user } = await apiJson<{ user: CurrentUser }>('/api/auth/me')
       const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
+      await loadDashboard()
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
       await loadHealthDocuments(user.householdId)
@@ -496,6 +501,7 @@ function App() {
     setHealthOverview(null)
     setHealthDocuments([])
     setMarkerHistory([])
+    setDashboard(fallbackDashboard)
     window.localStorage.removeItem(householdStorageKey)
   }
 
@@ -1397,6 +1403,25 @@ function App() {
   const referenceMinY = latestReferenceMin === null ? null : markerChartY(latestReferenceMin)
   const referenceMaxY = latestReferenceMax === null ? null : markerChartY(latestReferenceMax)
   const markerChange = latestMarker && previousMarker ? latestMarker.value - previousMarker.value : null
+  const attentionGroups = {
+    critical: dashboard.attention.filter((item) => item.severity === 'critical'),
+    warning: dashboard.attention.filter((item) => item.severity === 'warning'),
+    info: dashboard.attention.filter((item) => item.severity === 'info'),
+  }
+  const attentionGroupLabels: Record<Dashboard['attention'][number]['severity'], string> = {
+    critical: 'Critical',
+    warning: 'Review',
+    info: 'Info',
+  }
+
+  const openAttentionTarget = (item: Dashboard['attention'][number]) => {
+    setActivePage(item.targetPage)
+    window.location.hash = item.targetPage
+
+    if (item.targetPage === 'expenses' && item.targetSection) {
+      setExpenseSection(item.targetSection)
+    }
+  }
 
   const modules = [
     {
@@ -1407,15 +1432,15 @@ function App() {
     },
     {
       title: 'Expenses',
-      value: `${(expenseOverview?.monthTotal ?? dashboard.summary.monthlySpend).toLocaleString('pl-PL')} PLN`,
+      value: `${dashboard.summary.monthlySpend.toLocaleString('pl-PL')} PLN`,
       label: 'this month',
-      detail: 'Budgets, bills, receipts, reports',
+      detail: `${dashboard.summary.projectedBalance.toLocaleString('pl-PL')} PLN projected balance`,
     },
     {
       title: 'Health',
-      value: healthOverview?.markerNames.length ?? dashboard.summary.healthMarkersTracked,
+      value: dashboard.summary.healthMarkersTracked,
       label: 'markers tracked',
-      detail: 'Blood tests, trends, documents',
+      detail: `${dashboard.summary.healthOutOfRange} out of range`,
     },
     {
       title: 'Documents',
@@ -1653,22 +1678,30 @@ function App() {
 
               <div className="attention-list">
                 {dashboard.attention.length > 0 ? (
-                  dashboard.attention.map((item) => (
-                    <article className="attention-item" key={`${item.area}-${item.label}`}>
-                      <div>
-                        <strong>{item.label}</strong>
-                        <span>{item.area}</span>
-                      </div>
-                      <time>{item.due}</time>
-                    </article>
+                  (Object.keys(attentionGroups) as Array<Dashboard['attention'][number]['severity']>).map((severity) => (
+                    attentionGroups[severity].length > 0 && (
+                      <section className="attention-group" key={severity}>
+                        <h3>{attentionGroupLabels[severity]}</h3>
+                        {attentionGroups[severity].map((item) => (
+                          <article className={`attention-item severity-${item.severity}`} key={item.id}>
+                            <div>
+                              <strong>{item.title}</strong>
+                              <span>{item.area} · {item.detail}</span>
+                            </div>
+                            <button type="button" onClick={() => openAttentionTarget(item)}>
+                              {item.actionLabel}
+                            </button>
+                          </article>
+                        ))}
+                      </section>
+                    )
                   ))
                 ) : (
                   <article className="attention-item">
                     <div>
-                      <strong>Waiting for backend</strong>
-                      <span>System</span>
+                      <strong>Everything important looks calm.</strong>
+                      <span>Finance and health have no urgent review items right now.</span>
                     </div>
-                    <time>Now</time>
                   </article>
                 )}
               </div>
