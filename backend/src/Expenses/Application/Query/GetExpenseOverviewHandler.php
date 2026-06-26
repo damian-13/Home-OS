@@ -6,6 +6,7 @@ use App\Expenses\Application\DefaultExpenseCategories;
 use App\Expenses\Application\Dto\ExpenseCategoryView;
 use App\Expenses\Application\Dto\ExpenseOverviewView;
 use App\Expenses\Application\Dto\ExpenseView;
+use App\Expenses\Application\Dto\FinanceReviewRuleView;
 use App\Expenses\Application\Dto\IncomeEntryView;
 use App\Expenses\Application\Dto\IncomeSourceView;
 use App\Expenses\Application\Dto\RecurringBillView;
@@ -200,6 +201,7 @@ final readonly class GetExpenseOverviewHandler implements QueryHandler
             array_values($memberTotals),
             array_values($dailyTotals),
             array_values($monthlyTrend),
+            array_map(static fn ($rule) => FinanceReviewRuleView::fromRule($rule), $this->expenses->reviewRulesForHousehold($query->householdId)),
             [
                 'needsReviewCount' => count($expenseReviewCandidates) + count($incomeReviewCandidates),
                 'expenseNeedsReviewCount' => count($expenseReviewCandidates),

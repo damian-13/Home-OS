@@ -17,6 +17,7 @@ final readonly class ExpenseOverviewView
      * @param list<array{memberId: ?string, amount: float}> $memberTotals
      * @param list<array{date: string, expense: float, income: float}> $dailySpending
      * @param list<array{month: string, expense: float, income: float, balance: float}> $monthlyTrend
+     * @param list<FinanceReviewRuleView> $reviewRules
      * @param array<string, mixed> $review
      * @param array{month: string, categoryId: ?string, paidByMemberId: ?string} $activeFilters
      */
@@ -43,6 +44,7 @@ final readonly class ExpenseOverviewView
         public array $memberTotals,
         public array $dailySpending,
         public array $monthlyTrend,
+        public array $reviewRules,
         public array $review,
         public array $activeFilters,
     ) {

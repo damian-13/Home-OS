@@ -143,6 +143,14 @@ type ExpenseOverview = {
   memberTotals: Array<{ memberId: string | null; amount: number }>
   dailySpending: Array<{ date: string; expense: number; income: number }>
   monthlyTrend: Array<{ month: string; expense: number; income: number; balance: number }>
+  reviewRules: Array<{
+    id: string
+    targetType: 'expense' | 'income'
+    matchText: string
+    categoryId: string | null
+    incomeKind: IncomeEntry['incomeKind'] | null
+    lastAppliedAt: string | null
+  }>
   review: {
     needsReviewCount: number
     expenseNeedsReviewCount: number
@@ -933,6 +941,33 @@ function App() {
     }
   }
 
+  const applyFinanceReviewRule = async (
+    targetType: 'expense' | 'income',
+    matchText: string,
+    categoryId: string | null,
+    incomeKind: IncomeEntry['incomeKind'] | null,
+  ) => {
+    if (!household) return
+    setSetupState('saving')
+    try {
+      await apiJson<{ id: string, appliedCount: number }>(`/api/households/${household.id}/expenses/review-rules/apply`, {
+        method: 'POST',
+        body: JSON.stringify({
+          targetType,
+          matchText,
+          month: expenseFilterMonth,
+          categoryId,
+          incomeKind,
+        }),
+      })
+      await loadExpenseOverview(household.id)
+      await loadDashboard()
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
   const saveBudgets = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!household) return
@@ -1413,6 +1448,22 @@ function App() {
     warning: 'Review',
     info: 'Info',
   }
+  const categoryBySlug = (slug: string) => expenseOverview?.categories.find((category) => category.slug === slug) ?? null
+  const countExpenseMatches = (matchText: string) => (financeReview?.expenseCandidates ?? [])
+    .filter((expense) => expense.description.toLocaleLowerCase('pl-PL').includes(matchText.toLocaleLowerCase('pl-PL')))
+    .length
+  const countIncomeMatches = (matchText: string) => (financeReview?.incomeCandidates ?? [])
+    .filter((entry) => entry.description.toLocaleLowerCase('pl-PL').includes(matchText.toLocaleLowerCase('pl-PL')))
+    .length
+  const suggestedFinanceRules = [
+    { targetType: 'expense' as const, matchText: 'BIEDRONKA', label: 'BIEDRONKA to Groceries/Home', category: categoryBySlug('groceries-home'), incomeKind: null, count: countExpenseMatches('BIEDRONKA') },
+    { targetType: 'expense' as const, matchText: 'DINO', label: 'DINO to Groceries/Home', category: categoryBySlug('groceries-home'), incomeKind: null, count: countExpenseMatches('DINO') },
+    { targetType: 'expense' as const, matchText: 'MOYA', label: 'MOYA to Transport', category: categoryBySlug('transport'), incomeKind: null, count: countExpenseMatches('MOYA') },
+    { targetType: 'expense' as const, matchText: 'ORLEN', label: 'ORLEN to Transport', category: categoryBySlug('transport'), incomeKind: null, count: countExpenseMatches('ORLEN') },
+    { targetType: 'expense' as const, matchText: 'Gmina', label: 'Gmina to Bills', category: categoryBySlug('bills'), incomeKind: null, count: countExpenseMatches('Gmina') },
+    { targetType: 'income' as const, matchText: 'Amazon', label: 'Amazon positives to Refund', category: null, incomeKind: 'refund' as const, count: countIncomeMatches('Amazon') },
+    { targetType: 'income' as const, matchText: 'Przelew środków', label: 'Internal transfers to Transfer', category: null, incomeKind: 'transfer' as const, count: countIncomeMatches('Przelew środków') },
+  ].filter((rule) => rule.count > 0 && (rule.targetType === 'income' || rule.category))
 
   const openAttentionTarget = (item: Dashboard['attention'][number]) => {
     setActivePage(item.targetPage)
@@ -1997,6 +2048,47 @@ function App() {
                   <strong>{pln(financeReview?.excludedIncomeTotal ?? 0)}</strong>
                 </article>
               </div>
+
+              <section className="bulk-rule-panel" aria-label="Suggested bulk review rules">
+                <div>
+                  <p className="eyebrow">Bulk Cleanup</p>
+                  <h4>Suggested rules</h4>
+                </div>
+                <div className="bulk-rule-list">
+                  {suggestedFinanceRules.length > 0 ? (
+                    suggestedFinanceRules.map((rule) => (
+                      <article key={`${rule.targetType}-${rule.matchText}`}>
+                        <div>
+                          <strong>{rule.label}</strong>
+                          <small>{rule.count} matching review row{rule.count === 1 ? '' : 's'} this month</small>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => applyFinanceReviewRule(rule.targetType, rule.matchText, rule.category?.id ?? null, rule.incomeKind)}
+                          disabled={setupState === 'saving'}
+                        >
+                          Apply rule
+                        </button>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">No repeated review patterns found for this month.</p>
+                  )}
+                </div>
+
+                {(expenseOverview?.reviewRules ?? []).length > 0 && (
+                  <div className="saved-rule-list">
+                    <strong>Saved rules</strong>
+                    {(expenseOverview?.reviewRules ?? []).slice(0, 6).map((rule) => (
+                      <span key={rule.id}>
+                        {rule.matchText} → {rule.targetType === 'expense'
+                          ? expenseOverview?.categories.find((category) => category.id === rule.categoryId)?.name ?? 'Category'
+                          : rule.incomeKind}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </section>
 
               <div className="review-grid">
                 <section>

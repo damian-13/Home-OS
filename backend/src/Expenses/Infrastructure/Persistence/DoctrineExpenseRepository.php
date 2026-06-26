@@ -5,6 +5,7 @@ namespace App\Expenses\Infrastructure\Persistence;
 use App\Expenses\Domain\Model\Expense;
 use App\Expenses\Domain\Model\ExpenseBudget;
 use App\Expenses\Domain\Model\ExpenseCategory;
+use App\Expenses\Domain\Model\FinanceReviewRule;
 use App\Expenses\Domain\Model\IncomeEntry;
 use App\Expenses\Domain\Model\IncomeSource;
 use App\Expenses\Domain\Model\RecurringBill;
@@ -60,6 +61,12 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
     public function saveRecurringBillPayment(RecurringBillPayment $payment): void
     {
         $this->entityManager->persist($payment);
+        $this->entityManager->flush();
+    }
+
+    public function saveReviewRule(FinanceReviewRule $rule): void
+    {
+        $this->entityManager->persist($rule);
         $this->entityManager->flush();
     }
 
@@ -285,6 +292,18 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
             'householdId' => $householdId,
             'month' => $month,
         ]);
+    }
+
+    public function reviewRulesForHousehold(string $householdId): array
+    {
+        return $this->entityManager->getRepository(FinanceReviewRule::class)
+            ->createQueryBuilder('rule')
+            ->andWhere('rule.householdId = :householdId')
+            ->andWhere('rule.active = true')
+            ->setParameter('householdId', $householdId)
+            ->orderBy('rule.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
     }
 
     private function applyOptionalFilters(\Doctrine\ORM\QueryBuilder $builder, ?string $categoryId, ?string $paidByMemberId): void
