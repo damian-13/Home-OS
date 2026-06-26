@@ -878,7 +878,7 @@ h3 {
 
 .review-item {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) minmax(150px, 0.4fr) auto;
+  grid-template-columns: 12px minmax(0, 1fr) minmax(170px, 0.42fr) auto;
   gap: 12px;
   align-items: center;
   min-width: 0;
@@ -913,13 +913,48 @@ h3 {
 }
 
 .review-item select {
+  min-height: 42px;
   width: 100%;
   min-width: 0;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, #66748a 50%) right 16px center / 6px 6px no-repeat,
+    linear-gradient(135deg, #66748a 50%, transparent 50%) right 10px center / 6px 6px no-repeat,
+    #f8fbff;
+  color: #132033;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  padding: 0 34px 0 12px;
 }
 
 .review-item button {
-  min-height: 38px;
+  min-height: 42px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #2142d8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  padding: 0 14px;
   white-space: nowrap;
+}
+
+.review-item select:focus,
+.review-item button:focus-visible {
+  border-color: #2457ff;
+  box-shadow: 0 0 0 3px rgba(36, 87, 255, 0.13);
+  outline: none;
+}
+
+.review-item button:hover {
+  border-color: #2457ff;
+  background: #eef4ff;
 }
 
 .review-item.income-kind-transfer > span {
@@ -2340,14 +2375,23 @@ h3 {
 
   .money-mini-form,
   .budget-edit-grid,
-  .bill-checklist article,
-  .review-item {
+  .bill-checklist article {
     grid-template-columns: 1fr;
   }
 
+  .review-item {
+    grid-template-columns: 8px minmax(0, 1fr) minmax(170px, 220px);
+    align-items: start;
+  }
+
+  .review-item button {
+    grid-column: 3;
+  }
+
   .review-item > span {
-    width: 100%;
-    height: 8px;
+    width: 8px;
+    height: 100%;
+    min-height: 92px;
   }
 
   .cashflow-chart {
@@ -2387,6 +2431,20 @@ h3 {
 
   .money-item b {
     grid-column: 2;
+  }
+
+  .review-item {
+    grid-template-columns: 1fr;
+  }
+
+  .review-item button {
+    grid-column: auto;
+  }
+
+  .review-item > span {
+    width: 100%;
+    height: 8px;
+    min-height: 8px;
   }
 
   .inline-edit-form {
