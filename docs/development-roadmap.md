@@ -4,7 +4,13 @@ This roadmap is the single source of truth for product direction and development
 
 ## Summary
 
-Home OS should become a private, local-first daily command center for family life: money, health, documents, home maintenance, routines, reminders, and decisions.
+Home OS should become a private, local-first personal operating system for family life: money, health, documents, home maintenance, routines, reminders, reviews, and decisions. It should not become a passive database. It should continuously help answer:
+
+- What needs my attention?
+- What should I do next?
+- What can be automated?
+- What can be simplified?
+- What can be safely ignored?
 
 Every new feature should clearly satisfy at least one goal:
 
@@ -19,10 +25,13 @@ Every new feature should clearly satisfy at least one goal:
 
 Before implementing a feature, use this decision check:
 
-- Does this make daily life easier?
-- Will it be used every week?
+- What real-life problem does this solve?
+- How often will it realistically be used?
 - Does it reduce manual work?
-- Is there a simpler implementation?
+- Does it reduce stress?
+- Does it save time?
+- Is there a significantly simpler implementation?
+- If this feature disappeared in one year, would it be missed?
 - Is it worth the maintenance cost?
 - Does it fit the long-term vision?
 
@@ -76,6 +85,9 @@ If the answer is no, do not implement it yet.
 
 ### Missing UX
 
+- Dashboard is useful, but it should evolve from information display into a Decision Center focused on "What should I do today?"
+- There is no central Inbox for imported, parsed, suggested, failed, duplicate, or uncertain items.
+- Review workflows exist inside Expenses, but there is no cross-module Daily/Weekly/Monthly Review habit.
 - Home page as a real daily module.
 - Document archive with expiry reminders.
 - Health review queue.
@@ -88,14 +100,87 @@ If the answer is no, do not implement it yet.
 
 In 1-2 years, Home OS should be the family private daily operating system:
 
-- Open daily to see what needs attention today, soon, and overdue.
+- Open daily to see the highest-value actions for today, not just data summaries.
 - Capture expenses, documents, health results, and home tasks in seconds.
-- Review imported/parsed data instead of manually entering everything.
+- Review imported, parsed, OCR, and AI-suggested data in one Inbox instead of manually hunting across modules.
+- Maintain good habits through Daily, Weekly, and Monthly Review flows.
 - Predict forgotten tasks: expiring documents, unpaid bills, stale health checks, recurring maintenance.
+- Search across every module so the user never has to remember where something is stored.
+- Build a household Timeline from important events across modules.
+- Track major Life Events, such as moving house, buying a car, having a child, mortgage start, renovations, and energy upgrades.
 - Connect domains: a warranty document belongs to a device, a medical PDF belongs to a health result, a recurring bill belongs to finance and reminders.
 - Work locally first, with explicit backup/export and optional integrations.
 - Support a future mobile app through stable household-aware APIs.
-- Use AI only where it reduces effort: parsing, categorization, summarization, anomaly detection, and smart reminders.
+- Use small AI-assisted improvements throughout the product where they reduce effort: categorization, duplicate detection, document tagging, lab summaries, reminder suggestions, and file classification. AI suggestions must always remain reviewable by the user and must never make irreversible decisions automatically.
+
+## 2a. Core Product Principles
+
+### Dashboard as Decision Center
+
+The Dashboard should answer one question: "What should I do today?"
+
+It should prioritize actions over information. Prefer actionable items such as:
+
+- Pay electricity bill.
+- Replace heat pump filter.
+- Review imported bank transactions.
+- Recheck LDL.
+- Renew passport in 23 days.
+- Review warranty expiring next month.
+- Submit overdue water meter reading.
+
+Raw lists and passive charts belong deeper in modules. The Dashboard should surface the next best actions, grouped by urgency and confidence.
+
+### Inbox as Central Review Queue
+
+Inbox should become the single place to review incoming or uncertain information:
+
+- imported bank transactions,
+- OCR results,
+- parsed laboratory results,
+- uploaded documents needing metadata,
+- AI suggestions,
+- duplicate detection,
+- uncategorized expenses,
+- failed imports,
+- low-confidence classifications.
+
+The Inbox should reduce manual work by turning "find what needs cleanup" into one repeatable review habit. Domain modules may still have local review screens, but the global Inbox should aggregate them.
+
+### Review Workflows
+
+Home OS should encourage regular reviews:
+
+- Daily Review: today tasks, overdue reminders, incoming items.
+- Weekly Review: spending summary, health changes, home maintenance, expiring documents.
+- Monthly Review: budgets, subscriptions, recurring bills, household statistics.
+
+Reviews should be short, action-oriented, and completable. The app should show progress and make it obvious when the household is "reviewed enough."
+
+### Search, Timeline, and Life Events
+
+Global Search is a first-class product capability. It should search expenses, documents, warranties, invoices, blood results, medications, maintenance tasks, reminders, and future modules.
+
+Timeline should show a chronological history of important household events: house purchase, heat pump installation, blood tests, major purchases, warranties, insurance renewals, mortgage payments, and major expenses.
+
+Life Events is a future domain for major real-world changes: moving house, buying a car, having a child, changing jobs, starting a mortgage, installing photovoltaic panels, or major renovations. Other modules should eventually reference these events.
+
+### Success Metrics
+
+Product decisions should be guided by simple usefulness metrics:
+
+- daily active usage,
+- weekly active usage,
+- monthly active days,
+- average time to add an expense,
+- average review completion,
+- reminder completion rate,
+- document retrieval time,
+- dashboard actions completed,
+- inbox items resolved,
+- time from import/upload to reviewed data.
+
+Do not over-instrument early. Start with product definitions, then add lightweight measurement once core flows are stable.
 
 ## 3. Development Phases
 
@@ -103,14 +188,14 @@ In 1-2 years, Home OS should be the family private daily operating system:
 |---|---|---:|---|---|
 | 1. Stabilize Foundation | Add tests, roadmap governance, frontend structure, basic DX | High | Current code | Medium |
 | 2. Core Daily Usage | Make Dashboard, quick capture, reminders, home tasks useful daily | Very High | Foundation | Medium |
-| 3. Home Maintenance | Track recurring maintenance, warranties, inspections, household routines | Very High | Reminders | Medium |
-| 4. Documents MVP | Generic document metadata, expiry dates, tags, linked files | Very High | Attachment/storage | Medium |
-| 5. Finance Automation | Bank import UI, saved rule auto-apply, category learning, monthly close | Very High | Current Expenses | Medium/High |
-| 6. Health Intelligence | Health review queue, marker cleanup, stale checks, appointments, medications | High | Current Health | Medium/High |
-| 7. Family Productivity | Shared routines, chores, decisions, shopping/home lists | Medium/High | Reminders/tasks | Medium |
-| 8. Notifications | Email reminders, daily digest, overdue warnings | High | Reminders + Messenger | Medium |
+| 3. Inbox + Review Foundation | Aggregate review queues and create daily/weekly/monthly review habits | Very High | Current Dashboard + Expenses/Health reviews | Medium |
+| 4. Home Maintenance | Track recurring maintenance, warranties, inspections, household routines | Very High | Reminders | Medium |
+| 5. Documents MVP | Generic document metadata, expiry dates, tags, linked files | Very High | Attachment/storage | Medium |
+| 6. Search + Timeline Foundation | Make records findable and build household history | Very High | Stable domain read models | Medium/High |
+| 7. Finance Automation | Bank import UI, saved rule auto-apply, category learning, monthly close | Very High | Current Expenses + Inbox | Medium/High |
+| 8. Health Intelligence | Health review queue, marker cleanup, stale checks, appointments, medications | High | Current Health + Inbox | Medium/High |
 | 9. Security & Reliability | Audit logs, encrypted files, backup/export, permissions later if needed | Very High | Stable domains | High |
-| 10. Integrations & AI | OCR, Home Assistant, calendar, AI assistant, predictive reminders | High later | Stable core data | High |
+| 10. Integrations + AI Assistance | OCR, Home Assistant, calendar, AI assistant, predictive reminders | High later | Stable core data + reviewable suggestions | High |
 
 ## 4. Prioritized Backlog
 
@@ -119,21 +204,27 @@ In 1-2 years, Home OS should be the family private daily operating system:
 | P0 | Add `docs/development-roadmap.md` and update `AGENTS.md` | Makes roadmap the single source of truth | S | High |
 | P0 | Add backend API tests for Dashboard, Expenses review, Health import | Protects sensitive core flows | M | Very High |
 | P0 | Split frontend into feature folders without changing behavior | Makes future work faster and safer | M | High |
+| P0 | Define Dashboard Decision Center model | Keeps Dashboard focused on actions, not passive data | S/M | Very High |
 | P0 | Home Maintenance MVP | Fills biggest MVP gap and makes Dashboard useful beyond finance/health | M | Very High |
 | P0 | Generic Reminder model | Enables home tasks, document expiry, health follow-ups, bill reminders | M | Very High |
+| P0 | Inbox MVP for imported/review-needed items | Creates one place to process uncertainty and reduce manual work | M | Very High |
 | P1 | Generic Documents MVP | Organizes contracts, invoices, warranties, manuals, IDs | M | Very High |
 | P1 | Dashboard signals for home tasks and document expiry | Turns Dashboard into true daily start page | S/M | Very High |
+| P1 | Daily/Weekly/Monthly Review workflows | Builds the habit loop and reduces forgotten work | M | Very High |
 | P1 | Health Review Center | Reduces stress around imported/unknown/out-of-range markers | M | High |
 | P1 | Bank import UI | Removes manual developer-assisted imports | M/H | Very High |
 | P1 | Saved finance rules auto-apply on import | Reduces repetitive review work | M | High |
+| P1 | Global Search MVP | Removes need to remember which module owns a record | M/H | Very High |
 | P1 | Mobile-first navigation and quick actions | Makes daily capture realistic | M | High |
+| P2 | Timeline MVP | Creates household history from important records | M | High |
 | P2 | Audit logs for finance/health/documents | Needed for trust and safety | M | High |
 | P2 | Backup/export workflow | Protects local-first data | M/H | Very High |
 | P2 | Email reminder digest | Prevents forgotten tasks without app checking | M | High |
 | P2 | Document file security hardening | Protects sensitive files | M | High |
+| P3 | Life Events domain | Connects major household changes across modules | M/H | Medium/High |
 | P3 | Calendar integration | Useful after reminders/tasks are stable | H | Medium/High |
 | P3 | Home Assistant status integration | Valuable later, not before home/domain basics | H | Medium |
-| P3 | AI/OCR assistant | Powerful after data model and review flows mature | H | High later |
+| P3 | AI assistant | Powerful after reviewable suggestion flows mature | H | High later |
 
 ## 5. Milestones
 
@@ -153,40 +244,57 @@ In 1-2 years, Home OS should be the family private daily operating system:
 - Frontend: real `#home` page or replace placeholder with Home section.
 - Acceptance: user can track recurring home tasks and see due work on Dashboard.
 
-### Milestone 3: Generic Reminders
+### Milestone 3: Inbox + Reviews MVP
+
+- Add a global Inbox page/section that aggregates existing review queues from Expenses and Health first.
+- Inbox items should have source module, severity/confidence, title, detail, target action, and reviewed/dismissed state where supported.
+- Add Daily Review using Dashboard and Inbox: overdue reminders, today actions, imported/review-needed items.
+- Keep Weekly and Monthly Review as lightweight summaries until more domains exist.
+- Acceptance: user can open one place to process incoming/uncertain information.
+
+### Milestone 4: Generic Reminders
 
 - Add household reminders with due date, optional recurrence, related type/id, completed/skipped status.
 - Use reminders for home tasks first.
 - Dashboard attention: overdue today/upcoming.
 - Acceptance: reminders become reusable infrastructure without overbuilding notifications yet.
 
-### Milestone 4: Documents MVP
+### Milestone 5: Documents MVP
 
 - Add generic documents domain separate from health documents.
 - Metadata: title, type, owner member, issue date, expiry date, tags, note, file.
 - Dashboard attention: expiring/expired documents.
 - Acceptance: contracts, warranties, invoices, manuals can be stored and found.
 
-### Milestone 5: Health Review Center
+### Milestone 6: Search + Timeline Foundation
+
+- Add Global Search MVP across Expenses, Health, Documents, Home tasks, and Reminders as those domains exist.
+- Add Timeline read model for important household events generated from domain records.
+- Start with deterministic timeline events; avoid a complex event-sourcing abstraction.
+- Acceptance: user can find records without knowing the module and can see chronological household history.
+
+### Milestone 7: Health Review Center
 
 - Add a dedicated Health review section for unknown markers, suspicious references, out-of-range results, stale markers.
 - Add fast cleanup/edit actions.
+- Route health review items into global Inbox.
 - Acceptance: imported lab data can be trusted without scanning raw tables.
 
-### Milestone 6: Finance Import Productization
+### Milestone 8: Finance Import Productization
 
 - Add import UI for bank file upload/preview.
 - Auto-apply saved finance rules.
 - Review only uncertain transactions.
+- Route uncertain transactions and failed imports into global Inbox.
 - Acceptance: finance import no longer requires manual database/dev work.
 
-### Milestone 7: Mobile Daily Use
+### Milestone 9: Mobile Daily Use
 
 - Add mobile-friendly navigation and quick action layout.
 - Prioritize Dashboard, quick expense, reminders, health review.
 - Acceptance: user can complete daily capture/review comfortably on phone.
 
-### Milestone 8: Reliability & Privacy
+### Milestone 10: Reliability & Privacy
 
 - Add audit logs for sensitive edits/deletes.
 - Add backup/export.
@@ -200,6 +308,8 @@ In 1-2 years, Home OS should be the family private daily operating system:
 
 - Keep backend DDD/CQRS, but avoid introducing generic abstractions until two domains need the same behavior.
 - Introduce Shared `Reminder` only when Home/Documents need it.
+- Introduce global Inbox as a thin aggregation/read workflow first, not a heavy cross-domain write model.
+- Introduce Timeline as a deterministic read model first, not event sourcing.
 - Introduce Shared `Attachment` when Documents becomes generic; health documents can migrate later.
 - Keep session auth for local web, design APIs so JWT/mobile auth can be added later.
 
@@ -212,6 +322,8 @@ In 1-2 years, Home OS should be the family private daily operating system:
 ### Testing
 
 - Backend first: API tests for auth, household access, expenses overview/review, dashboard attention, health import/review.
+- Add tests that Dashboard returns action-oriented attention items, not only raw counts.
+- Add tests that Inbox aggregates review-needed items from source domains without breaking source workflows.
 - Frontend next: build check, lightweight component tests for dashboard actions, Playwright smoke flows later.
 - Add fixture builders for household, expenses, health results.
 
@@ -240,12 +352,28 @@ In 1-2 years, Home OS should be the family private daily operating system:
 ### Dashboard
 
 - Make Dashboard the default daily start.
-- Show Today, Upcoming, Overdue, Review Queues, Recent Activity.
+- Evolve Dashboard into a Decision Center answering "What should I do today?"
+- Show Today, Upcoming, Overdue, Review Queues, Recent Activity, and next best actions.
 - Keep actions one click away: add expense, review imports, mark bill paid, mark task done, review health.
+- Prefer actionable cards over raw lists or passive metrics.
+
+### Inbox
+
+- Add one place to review incoming/uncertain data across modules.
+- Use consistent actions: approve, edit, dismiss, merge duplicate, retry import, open source.
+- Keep domain-specific review screens, but make Inbox the daily entry point.
+
+### Reviews
+
+- Add Daily Review first: today actions, overdue items, incoming review items.
+- Add Weekly Review next: spending, health changes, maintenance, expiring documents.
+- Keep Monthly Review focused on budgets, subscriptions, recurring bills, and household statistics.
 
 ### Navigation
 
 - Add real Home page.
+- Add Inbox once it aggregates at least Expenses and Health.
+- Add Search as a persistent top-level affordance once at least three modules are searchable.
 - Keep main navigation small: Dashboard, Home, Expenses, Health, Documents.
 - Use internal tabs only inside complex modules.
 
@@ -280,10 +408,15 @@ In 1-2 years, Home OS should be the family private daily operating system:
 ## 8. Future Ideas To Remember
 
 - OCR for receipts and documents.
+- Small reviewable AI suggestions throughout the app: expense category, duplicate documents, lab summaries, abnormal marker explanations, reminder dates, document tags, and file classification.
 - AI lab result summarizer with strict medical disclaimers and source references.
 - AI finance categorization suggestions, always reviewable.
 - Predictive monthly cashflow warnings.
 - Smart reminders based on patterns.
+- Global Inbox for AI and import suggestions.
+- Global Search across every module.
+- Timeline of important household events.
+- Life Events domain for moving, buying a car, having a child, changing jobs, mortgage start, photovoltaic panels, and major renovations.
 - Calendar integration for appointments, renewals, and recurring tasks.
 - Home Assistant read-only status first, control later.
 - Inventory and warranty linking to documents.
@@ -299,6 +432,16 @@ No immediate API change is required to create this roadmap document.
 
 Future milestones should introduce these interfaces incrementally:
 
+- `GET /api/dashboard/actions`
+- `GET /api/households/{householdId}/inbox`
+- `PATCH /api/households/{householdId}/inbox/{itemId}`
+- `GET /api/households/{householdId}/reviews/daily`
+- `GET /api/households/{householdId}/reviews/weekly`
+- `GET /api/households/{householdId}/reviews/monthly`
+- `GET /api/households/{householdId}/search?q=...`
+- `GET /api/households/{householdId}/timeline`
+- `GET /api/households/{householdId}/life-events`
+- `POST /api/households/{householdId}/life-events`
 - `GET /api/households/{householdId}/home/maintenance-tasks`
 - `POST /api/households/{householdId}/home/maintenance-tasks`
 - `PATCH /api/households/{householdId}/home/maintenance-tasks/{taskId}`
@@ -312,12 +455,17 @@ Future milestones should introduce these interfaces incrementally:
 - `POST /api/households/{householdId}/reminders`
 - `PATCH /api/households/{householdId}/reminders/{reminderId}`
 - `DELETE /api/households/{householdId}/reminders/{reminderId}`
-- Expand `GET /api/dashboard` summary and attention items to include home tasks, reminders, and document expiry.
+- Expand `GET /api/dashboard` summary and attention items to include action-oriented home tasks, reminders, document expiry, Inbox counts, and review progress.
 
 ## Test Plan
 
 - Roadmap artifact: verify `docs/development-roadmap.md`, `README.md`, and `AGENTS.md` all point to the same roadmap.
 - Backend smoke: auth, household access, dashboard, expense overview, health overview.
+- Dashboard Decision Center: returns prioritized actions and navigates to the right source workflows.
+- Inbox: aggregates review-needed Expenses and Health items without duplicating source data ownership.
+- Review workflows: Daily Review includes today/overdue/imported items; Weekly/Monthly can start as read-only summaries.
+- Search: finds seeded records across implemented modules once Search MVP exists.
+- Timeline: displays deterministic events generated from implemented modules once Timeline MVP exists.
 - Expenses: add/edit/delete expense, import review rule, undo batch, budget warning, overdue bill attention.
 - Health: upload document, extract markers, import blood test, out-of-range attention, stale marker attention.
 - Future Home: create task, mark done, recurrence creates next due task or computes next due date, dashboard shows overdue/upcoming.
@@ -333,7 +481,9 @@ Future milestones should introduce these interfaces incrementally:
 - Local-first remains the default; cloud integrations are optional later.
 - Email is the first notification channel.
 - Home Assistant integration waits until Home/Reminders/Documents are useful without smart home.
-- AI features wait until deterministic capture/review/reminder workflows are stable.
+- AI can appear earlier as small reviewable suggestions, but deterministic workflows remain the source of truth.
+- AI must assist decisions and reduce manual work; it must not make irreversible changes automatically.
+- Product metrics should start as definitions in the roadmap, then become lightweight instrumentation after core flows stabilize.
 
 ## Continuous Planning Rules
 

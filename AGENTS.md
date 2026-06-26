@@ -248,8 +248,12 @@ Najlepsze funkcje w Home OS powinny odpowiadac na pytania:
 
 - "Czy w tym miesiacu jestesmy finansowo OK?"
 - "Co wymaga mojej uwagi dzisiaj?"
+- "Co powinienem zrobic jako nastepny krok?"
+- "Co moge przejrzec w jednym Inboxie zamiast szukac po modulach?"
 - "Czy moje zdrowie ma trend, ktorego nie powinienem przegapic?"
 - "Gdzie jest dokument, ktorego potrzebuje?"
 - "Co w domu trzeba zrobic zanim stanie sie problemem?"
+
+Dashboard powinien ewoluowac w Decision Center: akcje i decyzje przed pasywnymi listami danych. Inbox powinien agregowac rzeczy do przejrzenia z importow, OCR, AI sugestii i modulow domenowych.
 
 Jesli funkcja nie pomaga w jednym z tych pytan, najpierw zaproponowac mniejszy MVP.
