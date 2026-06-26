@@ -635,6 +635,159 @@ h3 {
   font-size: 20px;
 }
 
+.monthly-review-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.monthly-result-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.monthly-result-card.good {
+  border-color: #cfeedd;
+  background: #f4fff9;
+}
+
+.monthly-result-card.warning {
+  border-color: #ffd6a7;
+  background: #fff8ed;
+}
+
+.monthly-result-card.danger {
+  border-color: #ffc0c7;
+  background: #fff1f3;
+}
+
+.monthly-result-card h3,
+.monthly-result-card p {
+  margin: 0;
+}
+
+.monthly-result-card p {
+  color: #66748a;
+  font-weight: 750;
+}
+
+.monthly-result-card strong {
+  color: #132033;
+  font-size: 28px;
+  white-space: nowrap;
+}
+
+.monthly-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.monthly-review-grid article {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.monthly-review-grid article.good {
+  border-color: #cfeedd;
+}
+
+.monthly-review-grid article.warning {
+  border-color: #ffd6a7;
+}
+
+.monthly-review-grid article.danger {
+  border-color: #ffc0c7;
+}
+
+.monthly-review-grid article > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2142d8;
+  font-weight: 950;
+}
+
+.monthly-review-grid h3,
+.monthly-review-grid p {
+  margin: 0;
+}
+
+.monthly-review-grid p {
+  color: #66748a;
+  font-size: 13px;
+}
+
+.monthly-review-grid button {
+  min-height: 38px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #2142d8;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.monthly-suggestion-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.monthly-suggestion-list {
+  display: grid;
+  gap: 10px;
+}
+
+.monthly-suggestion-list article {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.monthly-suggestion-list article > span {
+  width: 12px;
+  height: 36px;
+  border-radius: 999px;
+}
+
+.monthly-suggestion-list strong,
+.monthly-suggestion-list small {
+  display: block;
+}
+
+.monthly-suggestion-list small {
+  color: #66748a;
+  font-size: 12px;
+}
+
+.monthly-suggestion-list b {
+  color: #132033;
+}
+
 .money-management-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
@@ -2335,6 +2488,7 @@ h3 {
   .money-management-grid,
   .review-grid,
   .overview-alert-grid,
+  .monthly-review-grid,
   .bulk-rule-list,
   .health-lists,
   .health-insight-grid,
@@ -2377,6 +2531,16 @@ h3 {
   .budget-edit-grid,
   .bill-checklist article {
     grid-template-columns: 1fr;
+  }
+
+  .monthly-result-card,
+  .monthly-review-grid article {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-result-card strong {
+    white-space: normal;
   }
 
   .review-item {

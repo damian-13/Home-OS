@@ -256,7 +256,7 @@ type MarkerFormRow = {
 }
 
 type AppPage = 'dashboard' | 'household' | 'expenses' | 'health' | 'documents'
-type ExpenseSection = 'overview' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
+type ExpenseSection = 'overview' | 'monthly-review' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
   app: 'Home OS',
@@ -1387,6 +1387,24 @@ function App() {
   const monthlyTrend = expenseOverview?.monthlyTrend ?? []
   const dailySpending = expenseOverview?.dailySpending ?? []
   const financeReview = expenseOverview?.review
+  const overBudgetRows = (expenseOverview?.budgetUsage ?? []).filter((row) => row.overBudget)
+  const budgetSuggestionRows = (expenseOverview?.budgetUsage ?? [])
+    .filter((row) => row.spent > 0 && (row.budget === 0 || row.overBudget))
+    .slice(0, 5)
+  const plannedBillCount = expenseOverview?.billChecklist.upcoming.length ?? 0
+  const skippedBillCount = expenseOverview?.billChecklist.skipped.length ?? 0
+  const paidBillCount = expenseOverview?.billChecklist.paid.length ?? 0
+  const otherIncomeEntries = (expenseOverview?.incomeEntries ?? []).filter((entry) => entry.incomeKind === 'other')
+  const pendingIncomeReviewCount = financeReview?.incomeNeedsReviewCount ?? 0
+  const monthDataIsClean = (financeReview?.needsReviewCount ?? 0) === 0 && pendingIncomeReviewCount === 0
+  const monthHasOpenBills = hasOverdueBills || plannedBillCount > 0
+  const monthResultTone = !monthDataIsClean ? 'warning' : (expenseOverview?.projectedMonthEndBalance ?? 0) < 0 || hasBudgetWarning || monthHasOpenBills ? 'danger' : 'good'
+  const monthResultLabel = !monthDataIsClean
+    ? 'Data needs cleanup'
+    : (expenseOverview?.projectedMonthEndBalance ?? 0) < 0 || hasBudgetWarning || monthHasOpenBills
+      ? 'Needs attention'
+      : 'Good month'
+  const suggestedBudgetAmount = (spent: number) => Math.ceil((spent * 1.05) / 50) * 50
   const maxTrendAmount = Math.max(1, ...monthlyTrend.flatMap((row) => [row.income, row.expense]))
   const maxDailyAmount = Math.max(1, ...dailySpending.map((row) => row.expense))
   const dailyChartWidth = 640
@@ -1542,6 +1560,7 @@ function App() {
 
   const expenseSections: Array<{ section: ExpenseSection; label: string; meta: string }> = [
     { section: 'overview', label: 'Overview', meta: 'Monthly status' },
+    { section: 'monthly-review', label: 'Monthly Review', meta: monthResultLabel },
     { section: 'analytics', label: 'Analytics', meta: 'Graphs and trends' },
     { section: 'transactions', label: 'Transactions', meta: 'Income and spending data' },
     { section: 'import-review', label: 'Import Review', meta: `${financeReview?.needsReviewCount ?? 0} to check` },
@@ -1969,6 +1988,92 @@ function App() {
                   ) : (
                     <p className="empty-state">Category totals will appear after you add expenses this month.</p>
                   )}
+                </section>
+              </section>
+            )}
+
+            {expenseSection === 'monthly-review' && (
+              <section className="monthly-review-panel" aria-label="Monthly finance review">
+                <article className={`monthly-result-card ${monthResultTone}`}>
+                  <div>
+                    <p className="eyebrow">Month Result</p>
+                    <h3>{monthResultLabel}</h3>
+                    <p>
+                      Income {pln(expenseOverview?.actualIncome ?? 0)} · Spending {pln(expenseOverview?.spentTotal ?? 0)} · Projected {pln(expenseOverview?.projectedMonthEndBalance ?? 0)}
+                    </p>
+                  </div>
+                  <strong>{pln(expenseOverview?.remainingMonthlyMoney ?? 0)}</strong>
+                </article>
+
+                <div className="monthly-review-grid">
+                  <article className={(financeReview?.needsReviewCount ?? 0) > 0 ? 'warning' : 'good'}>
+                    <span>1</span>
+                    <div>
+                      <h3>Review imports</h3>
+                      <p>{financeReview?.needsReviewCount ?? 0} imported row{(financeReview?.needsReviewCount ?? 0) === 1 ? '' : 's'} still need cleanup.</p>
+                    </div>
+                    <button type="button" onClick={() => setExpenseSection('import-review')}>
+                      Open import review
+                    </button>
+                  </article>
+
+                  <article className={pendingIncomeReviewCount > 0 || otherIncomeEntries.length > 0 ? 'warning' : 'good'}>
+                    <span>2</span>
+                    <div>
+                      <h3>Confirm income</h3>
+                      <p>
+                        {pendingIncomeReviewCount} income row{pendingIncomeReviewCount === 1 ? '' : 's'} need review. {otherIncomeEntries.length} row{otherIncomeEntries.length === 1 ? '' : 's'} are still marked as other income.
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => setExpenseSection('transactions')}>
+                      Open income
+                    </button>
+                  </article>
+
+                  <article className={hasBudgetWarning ? 'danger' : 'good'}>
+                    <span>3</span>
+                    <div>
+                      <h3>Check budgets</h3>
+                      <p>{overBudgetRows.length} categor{overBudgetRows.length === 1 ? 'y is' : 'ies are'} over budget.</p>
+                    </div>
+                    <button type="button" onClick={() => setExpenseSection('budgets')}>
+                      Open budgets
+                    </button>
+                  </article>
+
+                  <article className={monthHasOpenBills ? 'warning' : 'good'}>
+                    <span>4</span>
+                    <div>
+                      <h3>Check bills</h3>
+                      <p>{paidBillCount} paid · {plannedBillCount} planned · {skippedBillCount} skipped · {expenseOverview?.billChecklist.overdue.length ?? 0} overdue.</p>
+                    </div>
+                    <button type="button" onClick={() => setExpenseSection('bills')}>
+                      Open bills
+                    </button>
+                  </article>
+                </div>
+
+                <section className="monthly-suggestion-panel">
+                  <div>
+                    <p className="eyebrow">Next Month</p>
+                    <h3>Suggested budget updates</h3>
+                  </div>
+                  <div className="monthly-suggestion-list">
+                    {budgetSuggestionRows.length > 0 ? (
+                      budgetSuggestionRows.map((row) => (
+                        <article key={row.category.id}>
+                          <span style={{ background: row.category.color }}></span>
+                          <div>
+                            <strong>{row.category.name}</strong>
+                            <small>Spent {pln(row.spent)} · current budget {pln(row.budget)}</small>
+                          </div>
+                          <b>{pln(suggestedBudgetAmount(row.spent))}</b>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">No budget suggestions yet. Set category budgets and review a full month first.</p>
+                    )}
+                  </div>
                 </section>
               </section>
             )}
