@@ -45,21 +45,21 @@ If the answer is no, do not implement it yet.
 - Dashboard with real finance/health attention items and quick daily command center.
 - Expenses module: manual expenses, categories, income, budgets, recurring bills, monthly bill payments, import review, saved review rules, undo batches, analytics, and monthly review.
 - Health module: blood tests, marker history, out-of-range detection, health documents, lab result extraction/parsing flow.
+- Home Maintenance MVP: one-time and recurring maintenance tasks with due dates, simple recurrence, completion, and Dashboard overdue/upcoming attention.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
 
 - Backend is already organized by domain with DDD/CQRS-style commands, queries, handlers, repositories, and thin controllers.
 - Expenses has real daily value and useful review workflows.
-- Dashboard is no longer static and already surfaces finance/health attention.
+- Dashboard is no longer static and already surfaces finance/health/home attention.
 - Health import flow is practical for historical lab results.
 
 ### Incomplete
 
-- Home maintenance is still placeholder.
 - Generic Documents module does not exist; documents are currently health-specific.
 - Generic reminders/tasks do not exist.
-- Dashboard cannot yet show home/document/reminder signals.
+- Dashboard cannot yet show document/reminder signals.
 - No real notification pipeline.
 - No backup/export workflow.
 - No mobile-specific UX beyond responsive CSS.
@@ -88,7 +88,6 @@ If the answer is no, do not implement it yet.
 - Dashboard is useful, but it should evolve from information display into a Decision Center focused on "What should I do today?"
 - There is no central Inbox for imported, parsed, suggested, failed, duplicate, or uncertain items.
 - Review workflows exist inside Expenses, but there is no cross-module Daily/Weekly/Monthly Review habit.
-- Home page as a real daily module.
 - Document archive with expiry reminders.
 - Health review queue.
 - Better onboarding/default data setup.
@@ -236,6 +235,8 @@ Do not over-instrument early. Start with product definitions, then add lightweig
 - Acceptance: new work has a known roadmap location and critical APIs have at least smoke coverage.
 
 ### Milestone 2: Home Maintenance MVP
+
+Status: completed.
 
 - Add Home domain with maintenance tasks.
 - API: list/create/update/delete/mark done.

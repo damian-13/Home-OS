@@ -15,7 +15,7 @@ type Dashboard = {
   }
   attention: Array<{
     id: string
-    area: 'expenses' | 'health'
+    area: 'expenses' | 'health' | 'home'
     severity: 'critical' | 'warning' | 'info'
     title: string
     detail: string
@@ -226,6 +226,21 @@ type HealthDocument = {
   downloadUrl: string
 }
 
+type HomeMaintenanceTask = {
+  id: string
+  householdId: string
+  title: string
+  area: string
+  nextDueAt: string
+  recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+  assignedMemberId: string | null
+  priority: 'low' | 'normal' | 'high'
+  notes: string | null
+  status: 'active' | 'completed'
+  createdAt: string
+  completedAt: string | null
+}
+
 type DocumentExtraction = {
   documentId: string
   status: 'extracted' | 'empty' | 'failed' | 'missing_file' | 'tool_missing' | 'unsupported'
@@ -255,7 +270,7 @@ type MarkerFormRow = {
   notes: string
 }
 
-type AppPage = 'dashboard' | 'household' | 'expenses' | 'health' | 'documents'
+type AppPage = 'dashboard' | 'household' | 'home' | 'expenses' | 'health' | 'documents'
 type ExpenseSection = 'overview' | 'monthly-review' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
@@ -344,6 +359,7 @@ function App() {
   const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null)
   const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null)
   const [healthDocuments, setHealthDocuments] = useState<HealthDocument[]>([])
+  const [homeTasks, setHomeTasks] = useState<HomeMaintenanceTask[]>([])
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -354,6 +370,22 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [activePage, setActivePage] = useState<AppPage>('dashboard')
   const [expenseSection, setExpenseSection] = useState<ExpenseSection>('overview')
+  const [openHomeTaskCreator, setOpenHomeTaskCreator] = useState(false)
+  const [homeTaskTitle, setHomeTaskTitle] = useState('')
+  const [homeTaskArea, setHomeTaskArea] = useState('')
+  const [homeTaskNextDueAt, setHomeTaskNextDueAt] = useState(today)
+  const [homeTaskRecurrenceType, setHomeTaskRecurrenceType] = useState<HomeMaintenanceTask['recurrenceType']>('none')
+  const [homeTaskAssignedMemberId, setHomeTaskAssignedMemberId] = useState('')
+  const [homeTaskPriority, setHomeTaskPriority] = useState<HomeMaintenanceTask['priority']>('normal')
+  const [homeTaskNotes, setHomeTaskNotes] = useState('')
+  const [editingHomeTaskId, setEditingHomeTaskId] = useState<string | null>(null)
+  const [editHomeTaskTitle, setEditHomeTaskTitle] = useState('')
+  const [editHomeTaskArea, setEditHomeTaskArea] = useState('')
+  const [editHomeTaskNextDueAt, setEditHomeTaskNextDueAt] = useState(today)
+  const [editHomeTaskRecurrenceType, setEditHomeTaskRecurrenceType] = useState<HomeMaintenanceTask['recurrenceType']>('none')
+  const [editHomeTaskAssignedMemberId, setEditHomeTaskAssignedMemberId] = useState('')
+  const [editHomeTaskPriority, setEditHomeTaskPriority] = useState<HomeMaintenanceTask['priority']>('normal')
+  const [editHomeTaskNotes, setEditHomeTaskNotes] = useState('')
   const [expenseDescription, setExpenseDescription] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
   const [expenseCategoryId, setExpenseCategoryId] = useState('')
@@ -422,7 +454,7 @@ function App() {
     const readPageFromHash = () => {
       const page = window.location.hash.replace('#', '') as AppPage
 
-      if (['dashboard', 'household', 'expenses', 'health', 'documents'].includes(page)) {
+      if (['dashboard', 'household', 'home', 'expenses', 'health', 'documents'].includes(page)) {
         setActivePage(page)
       }
     }
@@ -452,6 +484,7 @@ function App() {
         return Promise.all([
           apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
           loadDashboard(),
+          loadHomeTasks(user.householdId),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
           loadHealthDocuments(user.householdId),
@@ -493,6 +526,7 @@ function App() {
       const { user } = await apiJson<{ user: CurrentUser }>('/api/auth/me')
       const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
       await loadDashboard()
+      await loadHomeTasks(user.householdId)
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
       await loadHealthDocuments(user.householdId)
@@ -515,6 +549,7 @@ function App() {
     setExpenseOverview(null)
     setHealthOverview(null)
     setHealthDocuments([])
+    setHomeTasks([])
     setMarkerHistory([])
     setDashboard(fallbackDashboard)
     window.localStorage.removeItem(householdStorageKey)
@@ -547,6 +582,16 @@ function App() {
 
   const refreshExpenseAndDashboard = async (householdId: string) => {
     await loadExpenseOverview(householdId)
+    await loadDashboard()
+  }
+
+  const loadHomeTasks = async (householdId: string) => {
+    const response = await apiJson<{ tasks: HomeMaintenanceTask[] }>(`/api/households/${householdId}/home/maintenance-tasks`)
+    setHomeTasks(response.tasks)
+  }
+
+  const refreshHomeAndDashboard = async (householdId: string) => {
+    await loadHomeTasks(householdId)
     await loadDashboard()
   }
 
@@ -645,6 +690,120 @@ function App() {
       setHousehold(await apiJson<Household>(`/api/households/${household.id}`))
       setMemberName('')
       setMemberType('adult')
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const addHomeTask = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/home/maintenance-tasks`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: homeTaskTitle,
+          area: homeTaskArea,
+          nextDueAt: homeTaskNextDueAt,
+          recurrenceType: homeTaskRecurrenceType,
+          assignedMemberId: homeTaskAssignedMemberId || null,
+          priority: homeTaskPriority,
+          notes: homeTaskNotes || null,
+        }),
+      })
+      await refreshHomeAndDashboard(household.id)
+      setHomeTaskTitle('')
+      setHomeTaskArea('')
+      setHomeTaskNextDueAt(today)
+      setHomeTaskRecurrenceType('none')
+      setHomeTaskAssignedMemberId('')
+      setHomeTaskPriority('normal')
+      setHomeTaskNotes('')
+      setOpenHomeTaskCreator(false)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const startEditHomeTask = (task: HomeMaintenanceTask) => {
+    setEditingHomeTaskId(task.id)
+    setEditHomeTaskTitle(task.title)
+    setEditHomeTaskArea(task.area)
+    setEditHomeTaskNextDueAt(task.nextDueAt)
+    setEditHomeTaskRecurrenceType(task.recurrenceType)
+    setEditHomeTaskAssignedMemberId(task.assignedMemberId ?? '')
+    setEditHomeTaskPriority(task.priority)
+    setEditHomeTaskNotes(task.notes ?? '')
+  }
+
+  const updateHomeTask = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !editingHomeTaskId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ status: string }>(`/api/households/${household.id}/home/maintenance-tasks/${editingHomeTaskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: editHomeTaskTitle,
+          area: editHomeTaskArea,
+          nextDueAt: editHomeTaskNextDueAt,
+          recurrenceType: editHomeTaskRecurrenceType,
+          assignedMemberId: editHomeTaskAssignedMemberId || null,
+          priority: editHomeTaskPriority,
+          notes: editHomeTaskNotes || null,
+        }),
+      })
+      await refreshHomeAndDashboard(household.id)
+      setEditingHomeTaskId(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteHomeTask = async (taskId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiNoContent(`/api/households/${household.id}/home/maintenance-tasks/${taskId}`, { method: 'DELETE' })
+      await refreshHomeAndDashboard(household.id)
+      setEditingHomeTaskId((current) => (current === taskId ? null : current))
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const completeHomeTask = async (taskId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ status: string }>(`/api/households/${household.id}/home/maintenance-tasks/${taskId}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      await refreshHomeAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -1378,6 +1537,24 @@ function App() {
   }
 
   const pln = (amount: number) => `${amount.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} PLN`
+  const activeHomeTasks = homeTasks.filter((task) => task.status === 'active')
+  const completedHomeTasks = homeTasks.filter((task) => task.status === 'completed')
+  const overdueHomeTasks = activeHomeTasks.filter((task) => task.nextDueAt < today)
+  const upcomingHomeTasks = activeHomeTasks.filter((task) => {
+    const dueTime = new Date(`${task.nextDueAt}T00:00:00`).getTime()
+    const todayTime = new Date(`${today}T00:00:00`).getTime()
+    const daysUntilDue = (dueTime - todayTime) / (1000 * 60 * 60 * 24)
+
+    return daysUntilDue >= 0 && daysUntilDue <= 14
+  })
+  const laterHomeTasks = activeHomeTasks.filter((task) => !overdueHomeTasks.includes(task) && !upcomingHomeTasks.includes(task))
+  const recurringHomeTasks = homeTasks.filter((task) => task.recurrenceType !== 'none')
+  const homeTaskGroups = [
+    { label: 'Overdue', tasks: overdueHomeTasks, tone: 'danger' },
+    { label: 'Next 14 days', tasks: upcomingHomeTasks, tone: 'warning' },
+    { label: 'Later', tasks: laterHomeTasks, tone: 'calm' },
+    { label: 'Completed', tasks: completedHomeTasks, tone: 'done' },
+  ]
   const billChecklistItems = [
     ...(expenseOverview?.billChecklist.overdue ?? []),
     ...(expenseOverview?.billChecklist.upcoming ?? []),
@@ -1537,7 +1714,7 @@ function App() {
       title: 'Home',
       value: dashboard.summary.homeTasksDue,
       label: 'tasks due',
-      detail: 'Maintenance, rooms, devices, inventory',
+      detail: `${homeTasks.length} maintenance tasks tracked`,
     },
     {
       title: 'Expenses',
@@ -1575,6 +1752,16 @@ function App() {
       onClick: () => openExpensesSection('bills'),
     },
     {
+      title: 'Home maintenance',
+      detail: `${overdueHomeTasks.length} overdue · ${upcomingHomeTasks.length} upcoming`,
+      tone: overdueHomeTasks.length > 0 ? 'danger' : upcomingHomeTasks.length > 0 ? 'warning' : 'good',
+      action: 'Open home',
+      onClick: () => {
+        setActivePage('home')
+        window.location.hash = 'home'
+      },
+    },
+    {
       title: 'Health signals',
       detail: `${dashboard.summary.healthOutOfRange} out of range · ${needsReviewMarkers.length} to clean`,
       tone: dashboard.summary.healthOutOfRange > 0 ? 'danger' : needsReviewMarkers.length > 0 ? 'warning' : 'good',
@@ -1596,6 +1783,7 @@ function App() {
   const navItems: Array<{ page: AppPage; label: string }> = [
     { page: 'dashboard', label: 'Dashboard' },
     { page: 'household', label: 'Household' },
+    { page: 'home', label: 'Home' },
     { page: 'expenses', label: 'Expenses' },
     { page: 'health', label: 'Health' },
     { page: 'documents', label: 'Documents' },
@@ -1621,6 +1809,11 @@ function App() {
       eyebrow: 'Household',
       title: household?.name ?? 'Loading household...',
       copy: household ? `${household.defaultCurrency} is set as the household currency.` : 'Loading your family workspace.',
+    },
+    home: {
+      eyebrow: 'Home',
+      title: 'Maintenance tasks that keep the house running.',
+      copy: 'Track one-time and recurring home work, then let the Dashboard remind you what needs action.',
     },
     expenses: {
       eyebrow: 'Expenses',
@@ -1983,6 +2176,195 @@ function App() {
                 {setupState === 'error' && <p className="form-error">Could not save member.</p>}
               </div>
             )}
+          </section>
+        )}
+
+        {activePage === 'home' && (
+          <section className="home-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Maintenance</p>
+                <h2>Home actions by due date.</h2>
+              </div>
+              <button type="button" onClick={() => setOpenHomeTaskCreator(!openHomeTaskCreator)}>
+                {openHomeTaskCreator ? 'Close form' : 'Add task'}
+              </button>
+            </div>
+
+            <div className="home-summary-grid">
+              <article className={overdueHomeTasks.length > 0 ? 'danger' : 'good'}>
+                <span>Overdue</span>
+                <strong>{overdueHomeTasks.length}</strong>
+              </article>
+              <article>
+                <span>Next 14 days</span>
+                <strong>{upcomingHomeTasks.length}</strong>
+              </article>
+              <article>
+                <span>Recurring</span>
+                <strong>{recurringHomeTasks.length}</strong>
+              </article>
+              <article>
+                <span>Completed</span>
+                <strong>{completedHomeTasks.length}</strong>
+              </article>
+            </div>
+
+            {openHomeTaskCreator && (
+              <section className="home-task-create-panel">
+                <form className="setup-form home-task-form" onSubmit={addHomeTask}>
+                  <label>
+                    Task
+                    <input value={homeTaskTitle} onChange={(event) => setHomeTaskTitle(event.target.value)} placeholder="Replace heat pump filter" required />
+                  </label>
+                  <label>
+                    Area
+                    <input value={homeTaskArea} onChange={(event) => setHomeTaskArea(event.target.value)} placeholder="Heating, garden, kitchen..." required />
+                  </label>
+                  <label>
+                    Due date
+                    <input type="date" value={homeTaskNextDueAt} onChange={(event) => setHomeTaskNextDueAt(event.target.value)} required />
+                  </label>
+                  <label>
+                    Repeat
+                    <select value={homeTaskRecurrenceType} onChange={(event) => setHomeTaskRecurrenceType(event.target.value as HomeMaintenanceTask['recurrenceType'])}>
+                      <option value="none">One-time</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </label>
+                  <label>
+                    Assigned to
+                    <select value={homeTaskAssignedMemberId} onChange={(event) => setHomeTaskAssignedMemberId(event.target.value)}>
+                      <option value="">Household</option>
+                      {(household?.members ?? []).map((member) => (
+                        <option value={member.id} key={member.id}>{member.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Priority
+                    <select value={homeTaskPriority} onChange={(event) => setHomeTaskPriority(event.target.value as HomeMaintenanceTask['priority'])}>
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                    </select>
+                  </label>
+                  <label className="home-task-notes">
+                    Notes
+                    <input value={homeTaskNotes} onChange={(event) => setHomeTaskNotes(event.target.value)} placeholder="Filter size, where tools are, phone number..." />
+                  </label>
+                  <button type="submit" disabled={setupState === 'saving'}>
+                    Save task
+                  </button>
+                </form>
+              </section>
+            )}
+
+            <div className="home-task-groups">
+              {homeTaskGroups.map((group) => (
+                <section className={`home-task-group ${group.tone}`} key={group.label}>
+                  <div className="panel-heading-row">
+                    <div>
+                      <p className="eyebrow">{group.label}</p>
+                      <h3>{group.tasks.length} task{group.tasks.length === 1 ? '' : 's'}</h3>
+                    </div>
+                  </div>
+
+                  <div className="home-task-list">
+                    {group.tasks.length > 0 ? (
+                      group.tasks.map((task) => (
+                        <article className={`home-task-item priority-${task.priority} status-${task.status}`} key={task.id}>
+                          <span className="home-task-priority"></span>
+                          <div className="home-task-main">
+                            <div>
+                              <strong>{task.title}</strong>
+                              <small>
+                                {task.area} · due {task.nextDueAt} · {task.recurrenceType === 'none' ? 'one-time' : task.recurrenceType}
+                                {' · '}{memberNameById(task.assignedMemberId)}
+                              </small>
+                              {task.notes && <p>{task.notes}</p>}
+                              {task.completedAt && <em>Last completed {new Date(task.completedAt).toLocaleDateString('pl-PL')}</em>}
+                            </div>
+                            <div className="row-actions">
+                              {task.status === 'active' && (
+                                <button type="button" onClick={() => completeHomeTask(task.id)} disabled={setupState === 'saving'}>
+                                  Done
+                                </button>
+                              )}
+                              <button type="button" onClick={() => startEditHomeTask(task)}>
+                                Edit
+                              </button>
+                              <button type="button" onClick={() => deleteHomeTask(task.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+
+                          {editingHomeTaskId === task.id && (
+                            <form className="inline-edit-form home-task-edit-form" onSubmit={updateHomeTask}>
+                              <label>
+                                Task
+                                <input value={editHomeTaskTitle} onChange={(event) => setEditHomeTaskTitle(event.target.value)} required />
+                              </label>
+                              <label>
+                                Area
+                                <input value={editHomeTaskArea} onChange={(event) => setEditHomeTaskArea(event.target.value)} required />
+                              </label>
+                              <label>
+                                Due date
+                                <input type="date" value={editHomeTaskNextDueAt} onChange={(event) => setEditHomeTaskNextDueAt(event.target.value)} required />
+                              </label>
+                              <label>
+                                Repeat
+                                <select value={editHomeTaskRecurrenceType} onChange={(event) => setEditHomeTaskRecurrenceType(event.target.value as HomeMaintenanceTask['recurrenceType'])}>
+                                  <option value="none">One-time</option>
+                                  <option value="daily">Daily</option>
+                                  <option value="weekly">Weekly</option>
+                                  <option value="monthly">Monthly</option>
+                                  <option value="yearly">Yearly</option>
+                                </select>
+                              </label>
+                              <label>
+                                Assigned to
+                                <select value={editHomeTaskAssignedMemberId} onChange={(event) => setEditHomeTaskAssignedMemberId(event.target.value)}>
+                                  <option value="">Household</option>
+                                  {(household?.members ?? []).map((member) => (
+                                    <option value={member.id} key={member.id}>{member.displayName}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                Priority
+                                <select value={editHomeTaskPriority} onChange={(event) => setEditHomeTaskPriority(event.target.value as HomeMaintenanceTask['priority'])}>
+                                  <option value="low">Low</option>
+                                  <option value="normal">Normal</option>
+                                  <option value="high">High</option>
+                                </select>
+                              </label>
+                              <label className="home-task-notes">
+                                Notes
+                                <input value={editHomeTaskNotes} onChange={(event) => setEditHomeTaskNotes(event.target.value)} />
+                              </label>
+                              <div className="inline-edit-actions">
+                                <button type="submit" disabled={setupState === 'saving'}>Save</button>
+                                <button type="button" onClick={() => setEditingHomeTaskId(null)}>Cancel</button>
+                              </div>
+                            </form>
+                          )}
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">No {group.label.toLocaleLowerCase('en-US')} maintenance tasks.</p>
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
+
+            {setupState === 'error' && <p className="form-error">Could not save home maintenance data.</p>}
           </section>
         )}
 

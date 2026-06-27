@@ -8,6 +8,8 @@ use App\Expenses\Application\Query\GetExpenseOverviewHandler;
 use App\Expenses\Application\Query\GetExpenseOverviewQuery;
 use App\Health\Domain\Model\BloodTestMarker;
 use App\Health\Domain\Repository\HealthRepository;
+use App\Home\Domain\Model\HomeMaintenanceTask;
+use App\Home\Domain\Repository\HomeMaintenanceRepository;
 use App\Shared\Application\Query\QueryHandler;
 use DateTimeImmutable;
 
@@ -16,6 +18,7 @@ final readonly class GetDashboardHandler implements QueryHandler
     public function __construct(
         private GetExpenseOverviewHandler $expenseOverview,
         private HealthRepository $health,
+        private HomeMaintenanceRepository $homeTasks,
     ) {
     }
 
@@ -31,6 +34,9 @@ final readonly class GetDashboardHandler implements QueryHandler
         $latestBloodTests = $this->health->latestBloodTests($query->householdId, null, 20);
         $outOfRangeMarkers = $this->health->latestOutOfRangeMarkers($query->householdId, null, 20);
         $markerNames = $this->health->markerNames($query->householdId);
+        $today = new DateTimeImmutable('today');
+        $overdueHomeTasks = $this->homeTasks->overdueTasks($query->householdId, $today, 5);
+        $upcomingHomeTasks = $this->homeTasks->upcomingTasks($query->householdId, $today, 14, 5);
         $attention = [];
 
         if ($expenses->projectedMonthEndBalance < 0) {
@@ -57,6 +63,18 @@ final readonly class GetDashboardHandler implements QueryHandler
                 'Review bills',
                 'expenses',
                 'bills',
+            );
+        }
+
+        foreach (array_slice($overdueHomeTasks, 0, 3) as $task) {
+            $attention[] = new DashboardAttentionItemView(
+                sprintf('home-overdue-%s', $task->id()),
+                'home',
+                $task->priority() === HomeMaintenanceTask::PRIORITY_HIGH ? 'critical' : 'warning',
+                sprintf('Home task overdue: %s', $task->title()),
+                sprintf('%s was due on %s.', $task->area(), $task->nextDueAt()->format('Y-m-d')),
+                'Open Home',
+                'home',
             );
         }
 
@@ -112,6 +130,18 @@ final readonly class GetDashboardHandler implements QueryHandler
             );
         }
 
+        foreach (array_slice($upcomingHomeTasks, 0, 3) as $task) {
+            $attention[] = new DashboardAttentionItemView(
+                sprintf('home-upcoming-%s', $task->id()),
+                'home',
+                'info',
+                sprintf('Home task due soon: %s', $task->title()),
+                sprintf('%s is due on %s.', $task->area(), $task->nextDueAt()->format('Y-m-d')),
+                'Open Home',
+                'home',
+            );
+        }
+
         $healthReviewMarkers = $this->healthReviewMarkers($latestBloodTests);
         if (count($healthReviewMarkers) > 0) {
             $attention[] = new DashboardAttentionItemView(
@@ -142,7 +172,7 @@ final readonly class GetDashboardHandler implements QueryHandler
             'Home OS',
             'online',
             [
-                'homeTasksDue' => 0,
+                'homeTasksDue' => count($overdueHomeTasks) + count($upcomingHomeTasks),
                 'monthlySpend' => $expenses->monthTotal,
                 'projectedBalance' => $expenses->projectedMonthEndBalance,
                 'financeReviewCount' => (int) ($expenses->review['needsReviewCount'] ?? 0),

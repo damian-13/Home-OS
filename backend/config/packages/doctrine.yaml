@@ -38,6 +38,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Health/Domain/Model'
                 prefix: 'App\Health\Domain\Model'
                 alias: Health
+            Home:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Home/Domain/Model'
+                prefix: 'App\Home\Domain\Model'
+                alias: Home
         controller_resolver:
             auto_mapping: false
 

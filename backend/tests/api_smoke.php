@@ -48,6 +48,7 @@ register_shutdown_function(static function () use (&$createdHouseholdId, &$creat
             'expense_categories',
             'health_documents',
             'blood_tests',
+            'home_maintenance_tasks',
         ] as $table) {
             $statement = $pdo->prepare(sprintf('DELETE FROM %s WHERE household_id = :householdId', $table));
             $statement->execute(['householdId' => $createdHouseholdId]);
@@ -193,6 +194,104 @@ assertTrue(($expenses['body']['currency'] ?? null) === 'PLN', 'Expense overview 
 assertTrue(is_array($expenses['body']['categories'] ?? null), 'Expense overview should include categories.');
 assertTrue(count($expenses['body']['categories']) > 0, 'Expense overview should create default categories.');
 assertTrue(is_array($expenses['body']['activeFilters'] ?? null), 'Expense overview should include active filters.');
+
+$yesterday = (new DateTimeImmutable('yesterday'))->format('Y-m-d');
+$tomorrow = (new DateTimeImmutable('tomorrow'))->format('Y-m-d');
+
+$oneTimeTask = apiRequest('POST', sprintf('/api/households/%s/home/maintenance-tasks', rawurlencode($householdId)), [
+    'title' => 'Smoke clean gutters',
+    'area' => 'Roof',
+    'nextDueAt' => $yesterday,
+    'recurrenceType' => 'none',
+    'priority' => 'high',
+    'notes' => 'Created by smoke test',
+]);
+
+assertTrue($oneTimeTask['status'] === 201, 'Home maintenance task create should return 201.');
+assertTrue(is_string($oneTimeTask['body']['id'] ?? null), 'Home maintenance task create should return id.');
+
+$recurringTask = apiRequest('POST', sprintf('/api/households/%s/home/maintenance-tasks', rawurlencode($householdId)), [
+    'title' => 'Smoke replace filter',
+    'area' => 'Heating',
+    'nextDueAt' => $yesterday,
+    'recurrenceType' => 'weekly',
+    'priority' => 'normal',
+    'notes' => null,
+]);
+
+assertTrue($recurringTask['status'] === 201, 'Recurring home task create should return 201.');
+assertTrue(is_string($recurringTask['body']['id'] ?? null), 'Recurring home task create should return id.');
+
+$dashboardOverdueTask = apiRequest('POST', sprintf('/api/households/%s/home/maintenance-tasks', rawurlencode($householdId)), [
+    'title' => 'Smoke water meter reading',
+    'area' => 'Utilities',
+    'nextDueAt' => $yesterday,
+    'recurrenceType' => 'monthly',
+    'priority' => 'high',
+    'notes' => null,
+]);
+
+assertTrue($dashboardOverdueTask['status'] === 201, 'Dashboard overdue home task create should return 201.');
+
+$upcomingTask = apiRequest('POST', sprintf('/api/households/%s/home/maintenance-tasks', rawurlencode($householdId)), [
+    'title' => 'Smoke test boiler pressure',
+    'area' => 'Heating',
+    'nextDueAt' => $tomorrow,
+    'recurrenceType' => 'none',
+    'priority' => 'normal',
+    'notes' => null,
+]);
+
+assertTrue($upcomingTask['status'] === 201, 'Upcoming home task create should return 201.');
+
+$homeList = apiRequest('GET', sprintf('/api/households/%s/home/maintenance-tasks', rawurlencode($householdId)));
+
+assertTrue($homeList['status'] === 200, 'Home maintenance task list should return 200.');
+assertTrue(is_array($homeList['body']['tasks'] ?? null), 'Home maintenance task list should return tasks.');
+assertTrue(count($homeList['body']['tasks']) >= 4, 'Home maintenance task list should include created tasks.');
+
+$completeOneTime = apiRequest('POST', sprintf(
+    '/api/households/%s/home/maintenance-tasks/%s/complete',
+    rawurlencode($householdId),
+    rawurlencode((string) $oneTimeTask['body']['id']),
+));
+
+assertTrue($completeOneTime['status'] === 200, 'Completing one-time home task should return 200.');
+
+$completeRecurring = apiRequest('POST', sprintf(
+    '/api/households/%s/home/maintenance-tasks/%s/complete',
+    rawurlencode($householdId),
+    rawurlencode((string) $recurringTask['body']['id']),
+));
+
+assertTrue($completeRecurring['status'] === 200, 'Completing recurring home task should return 200.');
+
+$homeAfterCompletion = apiRequest('GET', sprintf('/api/households/%s/home/maintenance-tasks', rawurlencode($householdId)));
+$tasksById = [];
+foreach (($homeAfterCompletion['body']['tasks'] ?? []) as $task) {
+    if (is_array($task) && isset($task['id'])) {
+        $tasksById[(string) $task['id']] = $task;
+    }
+}
+
+$completedOneTime = $tasksById[(string) $oneTimeTask['body']['id']] ?? null;
+$completedRecurring = $tasksById[(string) $recurringTask['body']['id']] ?? null;
+
+assertTrue(($completedOneTime['status'] ?? null) === 'completed', 'Completing one-time task should mark it completed.');
+assertTrue(is_string($completedOneTime['completedAt'] ?? null), 'Completing one-time task should set completedAt.');
+assertTrue(($completedRecurring['status'] ?? null) === 'active', 'Completing recurring task should keep it active.');
+assertTrue(($completedRecurring['nextDueAt'] ?? '') > $yesterday, 'Completing recurring task should advance next due date.');
+assertTrue(is_string($completedRecurring['completedAt'] ?? null), 'Completing recurring task should set completedAt.');
+
+$dashboardWithHome = apiRequest('GET', '/api/dashboard');
+$homeAttention = array_values(array_filter(
+    $dashboardWithHome['body']['attention'] ?? [],
+    static fn (array $item): bool => ($item['area'] ?? null) === 'home',
+));
+
+assertTrue(($dashboardWithHome['body']['summary']['homeTasksDue'] ?? 0) >= 2, 'Dashboard should count due home tasks.');
+assertTrue(count($homeAttention) >= 2, 'Dashboard should include home overdue and upcoming attention items.');
+assertTrue(in_array('home', array_column($homeAttention, 'targetPage'), true), 'Home attention should navigate to Home page.');
 
 $health = apiRequest('GET', sprintf('/api/households/%s/health/overview', rawurlencode($householdId)));
 
