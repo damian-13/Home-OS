@@ -352,7 +352,7 @@ h3 {
 
 .module-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
 }
 
@@ -1608,6 +1608,194 @@ h3 {
   grid-column: 2 / -1;
 }
 
+.reminders-panel {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 42px rgba(39, 55, 88, 0.1);
+}
+
+.reminders-panel > .section-heading > button,
+.reminder-form button,
+.reminder-item button {
+  min-height: 42px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #2142d8;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 14px;
+}
+
+.reminders-panel > .section-heading > button:hover,
+.reminder-form button:hover,
+.reminder-item button:hover {
+  border-color: #2457ff;
+  background: #eef4ff;
+}
+
+.reminder-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.reminder-summary-grid article {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 15px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.reminder-summary-grid article.good {
+  border-color: #cfeedd;
+  background: #f4fff9;
+}
+
+.reminder-summary-grid article.danger {
+  border-color: #ffc0c7;
+  background: #fff1f3;
+}
+
+.reminder-summary-grid span {
+  color: #66748a;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.reminder-summary-grid strong {
+  color: #132033;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.reminder-create-panel,
+.reminder-group {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.reminder-create-panel {
+  background: linear-gradient(135deg, #ffffff, #f8fbff);
+}
+
+.reminder-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+}
+
+.reminder-note-field {
+  grid-column: span 2;
+}
+
+.reminder-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.reminder-group.danger {
+  border-color: #ffc0c7;
+  background: #fff8f9;
+}
+
+.reminder-group.warning {
+  border-color: #ffd6a7;
+  background: #fffaf2;
+}
+
+.reminder-group.done {
+  background: #f7f9ff;
+}
+
+.reminder-list {
+  display: grid;
+  gap: 10px;
+}
+
+.reminder-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid #e3e9f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.reminder-item.status-completed,
+.reminder-item.status-skipped {
+  opacity: 0.78;
+}
+
+.reminder-priority {
+  width: 12px;
+  min-height: 58px;
+  border-radius: 999px;
+  background: #18a67a;
+}
+
+.reminder-item.priority-low .reminder-priority {
+  background: #64748b;
+}
+
+.reminder-item.priority-high .reminder-priority {
+  background: #e11d48;
+}
+
+.reminder-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.reminder-main strong,
+.reminder-main small,
+.reminder-main em {
+  display: block;
+}
+
+.reminder-main strong {
+  color: #132033;
+  font-size: 16px;
+}
+
+.reminder-main small,
+.reminder-main p,
+.reminder-main em {
+  color: #66748a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.reminder-main p {
+  margin-top: 6px;
+}
+
+.reminder-main em {
+  margin-top: 6px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.reminder-edit-form {
+  grid-column: 2 / -1;
+}
+
 .inbox-panel {
   display: grid;
   gap: 18px;
@@ -1640,7 +1828,7 @@ h3 {
 
 .inbox-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -3150,6 +3338,8 @@ h3 {
 
   .home-task-form,
   .home-task-main,
+  .reminder-form,
+  .reminder-main,
   .daily-review-item,
   .inbox-item {
     display: grid;
@@ -3157,7 +3347,9 @@ h3 {
   }
 
   .home-task-notes,
-  .home-task-edit-form {
+  .home-task-edit-form,
+  .reminder-note-field,
+  .reminder-edit-form {
     grid-column: auto;
   }
 
@@ -3247,6 +3439,7 @@ h3 {
   .review-stats,
   .health-summary-grid,
   .home-summary-grid,
+  .reminder-summary-grid,
   .inbox-summary-grid,
   .marker-trend-grid,
   .nav-list {

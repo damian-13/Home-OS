@@ -40,6 +40,9 @@ services:
     App\Home\Domain\Repository\HomeMaintenanceRepository:
         alias: App\Home\Infrastructure\Persistence\DoctrineHomeMaintenanceRepository
 
+    App\Reminders\Domain\Repository\ReminderRepository:
+        alias: App\Reminders\Infrastructure\Persistence\DoctrineReminderRepository
+
     App\Shared\Application\Command\CommandBus:
         alias: App\Shared\Application\Command\SynchronousCommandBus
 

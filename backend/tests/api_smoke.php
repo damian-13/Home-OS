@@ -49,6 +49,7 @@ register_shutdown_function(static function () use (&$createdHouseholdId, &$creat
             'health_documents',
             'blood_tests',
             'home_maintenance_tasks',
+            'reminders',
         ] as $table) {
             $statement = $pdo->prepare(sprintf('DELETE FROM %s WHERE household_id = :householdId', $table));
             $statement->execute(['householdId' => $createdHouseholdId]);
@@ -311,15 +312,134 @@ assertTrue(($completedRecurring['status'] ?? null) === 'active', 'Completing rec
 assertTrue(($completedRecurring['nextDueAt'] ?? '') > $yesterday, 'Completing recurring task should advance next due date.');
 assertTrue(is_string($completedRecurring['completedAt'] ?? null), 'Completing recurring task should set completedAt.');
 
+$oneTimeReminder = apiRequest('POST', sprintf('/api/households/%s/reminders', rawurlencode($householdId)), [
+    'title' => 'Smoke one-time reminder',
+    'note' => 'Complete once',
+    'dueAt' => $yesterday,
+    'recurrenceType' => 'none',
+    'priority' => 'high',
+]);
+
+assertTrue($oneTimeReminder['status'] === 201, 'One-time reminder create should return 201.');
+assertTrue(is_string($oneTimeReminder['body']['id'] ?? null), 'One-time reminder create should return id.');
+
+$recurringCompleteReminder = apiRequest('POST', sprintf('/api/households/%s/reminders', rawurlencode($householdId)), [
+    'title' => 'Smoke recurring complete reminder',
+    'note' => null,
+    'dueAt' => $yesterday,
+    'recurrenceType' => 'weekly',
+    'priority' => 'normal',
+]);
+
+assertTrue($recurringCompleteReminder['status'] === 201, 'Recurring complete reminder create should return 201.');
+
+$recurringSkipReminder = apiRequest('POST', sprintf('/api/households/%s/reminders', rawurlencode($householdId)), [
+    'title' => 'Smoke recurring skip reminder',
+    'note' => null,
+    'dueAt' => $yesterday,
+    'recurrenceType' => 'monthly',
+    'priority' => 'normal',
+]);
+
+assertTrue($recurringSkipReminder['status'] === 201, 'Recurring skip reminder create should return 201.');
+
+$dashboardOverdueReminder = apiRequest('POST', sprintf('/api/households/%s/reminders', rawurlencode($householdId)), [
+    'title' => 'Smoke overdue reminder for dashboard',
+    'note' => 'Should appear in Dashboard and Inbox',
+    'dueAt' => $yesterday,
+    'recurrenceType' => 'none',
+    'priority' => 'high',
+]);
+
+assertTrue($dashboardOverdueReminder['status'] === 201, 'Dashboard overdue reminder create should return 201.');
+
+$dashboardTodayReminder = apiRequest('POST', sprintf('/api/households/%s/reminders', rawurlencode($householdId)), [
+    'title' => 'Smoke today reminder for dashboard',
+    'note' => 'Due today',
+    'dueAt' => (new DateTimeImmutable('today'))->format('Y-m-d'),
+    'recurrenceType' => 'none',
+    'priority' => 'normal',
+]);
+
+assertTrue($dashboardTodayReminder['status'] === 201, 'Dashboard today reminder create should return 201.');
+
+$dashboardUpcomingReminder = apiRequest('POST', sprintf('/api/households/%s/reminders', rawurlencode($householdId)), [
+    'title' => 'Smoke upcoming reminder for dashboard',
+    'note' => 'Due soon',
+    'dueAt' => $tomorrow,
+    'recurrenceType' => 'none',
+    'priority' => 'low',
+]);
+
+assertTrue($dashboardUpcomingReminder['status'] === 201, 'Dashboard upcoming reminder create should return 201.');
+
+$reminderList = apiRequest('GET', sprintf('/api/households/%s/reminders', rawurlencode($householdId)));
+
+assertTrue($reminderList['status'] === 200, 'Reminder list should return 200.');
+assertTrue(is_array($reminderList['body']['reminders'] ?? null), 'Reminder list should return reminders.');
+assertTrue(count($reminderList['body']['reminders']) >= 6, 'Reminder list should include created reminders.');
+
+$completeOneTimeReminder = apiRequest('POST', sprintf(
+    '/api/households/%s/reminders/%s/complete',
+    rawurlencode($householdId),
+    rawurlencode((string) $oneTimeReminder['body']['id']),
+));
+
+assertTrue($completeOneTimeReminder['status'] === 200, 'Completing one-time reminder should return 200.');
+
+$completeRecurringReminder = apiRequest('POST', sprintf(
+    '/api/households/%s/reminders/%s/complete',
+    rawurlencode($householdId),
+    rawurlencode((string) $recurringCompleteReminder['body']['id']),
+));
+
+assertTrue($completeRecurringReminder['status'] === 200, 'Completing recurring reminder should return 200.');
+
+$skipRecurringReminder = apiRequest('POST', sprintf(
+    '/api/households/%s/reminders/%s/skip',
+    rawurlencode($householdId),
+    rawurlencode((string) $recurringSkipReminder['body']['id']),
+));
+
+assertTrue($skipRecurringReminder['status'] === 200, 'Skipping recurring reminder should return 200.');
+
+$remindersAfterActions = apiRequest('GET', sprintf('/api/households/%s/reminders', rawurlencode($householdId)));
+$remindersById = [];
+foreach (($remindersAfterActions['body']['reminders'] ?? []) as $reminder) {
+    if (is_array($reminder) && isset($reminder['id'])) {
+        $remindersById[(string) $reminder['id']] = $reminder;
+    }
+}
+
+$completedOneTimeReminder = $remindersById[(string) $oneTimeReminder['body']['id']] ?? null;
+$completedRecurringReminder = $remindersById[(string) $recurringCompleteReminder['body']['id']] ?? null;
+$skippedRecurringReminder = $remindersById[(string) $recurringSkipReminder['body']['id']] ?? null;
+
+assertTrue(($completedOneTimeReminder['status'] ?? null) === 'completed', 'Completing one-time reminder should mark it completed.');
+assertTrue(is_string($completedOneTimeReminder['completedAt'] ?? null), 'Completing one-time reminder should set completedAt.');
+assertTrue(($completedRecurringReminder['status'] ?? null) === 'pending', 'Completing recurring reminder should keep it pending.');
+assertTrue(($completedRecurringReminder['dueAt'] ?? '') > $yesterday, 'Completing recurring reminder should advance due date.');
+assertTrue(is_string($completedRecurringReminder['completedAt'] ?? null), 'Completing recurring reminder should set completedAt.');
+assertTrue(($skippedRecurringReminder['status'] ?? null) === 'pending', 'Skipping recurring reminder should keep it pending.');
+assertTrue(($skippedRecurringReminder['dueAt'] ?? '') > $yesterday, 'Skipping recurring reminder should advance due date.');
+assertTrue(is_string($skippedRecurringReminder['skippedAt'] ?? null), 'Skipping recurring reminder should set skippedAt.');
+
 $dashboardWithHome = apiRequest('GET', '/api/dashboard');
 $homeAttention = array_values(array_filter(
     $dashboardWithHome['body']['attention'] ?? [],
     static fn (array $item): bool => ($item['area'] ?? null) === 'home',
 ));
+$reminderAttention = array_values(array_filter(
+    $dashboardWithHome['body']['attention'] ?? [],
+    static fn (array $item): bool => ($item['area'] ?? null) === 'reminders',
+));
 
 assertTrue(($dashboardWithHome['body']['summary']['homeTasksDue'] ?? 0) >= 2, 'Dashboard should count due home tasks.');
 assertTrue(count($homeAttention) >= 2, 'Dashboard should include home overdue and upcoming attention items.');
 assertTrue(in_array('home', array_column($homeAttention, 'targetPage'), true), 'Home attention should navigate to Home page.');
+assertTrue(($dashboardWithHome['body']['summary']['remindersDue'] ?? 0) >= 3, 'Dashboard should count due reminders.');
+assertTrue(count($reminderAttention) >= 3, 'Dashboard should include overdue, today, and upcoming reminder attention items.');
+assertTrue(in_array('reminders', array_column($reminderAttention, 'targetPage'), true), 'Reminder attention should navigate to Reminders page.');
 
 $memberId = (string) ($user['linkedMemberId'] ?? '');
 $bloodTest = apiRequest('POST', sprintf('/api/households/%s/health/blood-tests', rawurlencode($householdId)), [
@@ -355,6 +475,7 @@ $inboxSources = array_values(array_unique(array_map(
 assertTrue(in_array('expenses', $inboxSources, true), 'Inbox should include expense review items.');
 assertTrue(in_array('health', $inboxSources, true), 'Inbox should include health review items.');
 assertTrue(in_array('home', $inboxSources, true), 'Inbox should include home maintenance items.');
+assertTrue(in_array('reminders', $inboxSources, true), 'Inbox should include due reminder items.');
 
 $dashboardWithInbox = apiRequest('GET', '/api/dashboard');
 

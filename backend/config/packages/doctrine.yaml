@@ -44,6 +44,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Home/Domain/Model'
                 prefix: 'App\Home\Domain\Model'
                 alias: Home
+            Reminders:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Reminders/Domain/Model'
+                prefix: 'App\Reminders\Domain\Model'
+                alias: Reminders
         controller_resolver:
             auto_mapping: false
 

@@ -12,6 +12,8 @@ use App\Home\Domain\Model\HomeMaintenanceTask;
 use App\Home\Domain\Repository\HomeMaintenanceRepository;
 use App\Inbox\Application\Query\GetInboxHandler;
 use App\Inbox\Application\Query\GetInboxQuery;
+use App\Reminders\Domain\Model\Reminder;
+use App\Reminders\Domain\Repository\ReminderRepository;
 use App\Shared\Application\Query\QueryHandler;
 use DateTimeImmutable;
 
@@ -22,6 +24,7 @@ final readonly class GetDashboardHandler implements QueryHandler
         private HealthRepository $health,
         private HomeMaintenanceRepository $homeTasks,
         private GetInboxHandler $inbox,
+        private ReminderRepository $reminders,
     ) {
     }
 
@@ -40,6 +43,9 @@ final readonly class GetDashboardHandler implements QueryHandler
         $today = new DateTimeImmutable('today');
         $overdueHomeTasks = $this->homeTasks->overdueTasks($query->householdId, $today, 5);
         $upcomingHomeTasks = $this->homeTasks->upcomingTasks($query->householdId, $today, 14, 5);
+        $overdueReminders = $this->reminders->overdueReminders($query->householdId, $today, 5);
+        $todayReminders = $this->reminders->dueTodayReminders($query->householdId, $today, 5);
+        $upcomingReminders = $this->reminders->upcomingReminders($query->householdId, $today, 14, 5);
         $inbox = ($this->inbox)(new GetInboxQuery($query->householdId));
         $attention = [];
 
@@ -79,6 +85,30 @@ final readonly class GetDashboardHandler implements QueryHandler
                 sprintf('%s was due on %s.', $task->area(), $task->nextDueAt()->format('Y-m-d')),
                 'Open Home',
                 'home',
+            );
+        }
+
+        foreach (array_slice($overdueReminders, 0, 3) as $reminder) {
+            $attention[] = new DashboardAttentionItemView(
+                sprintf('reminder-overdue-%s', $reminder->id()),
+                'reminders',
+                $reminder->priority() === Reminder::PRIORITY_HIGH ? 'critical' : 'warning',
+                sprintf('Reminder overdue: %s', $reminder->title()),
+                sprintf('Was due on %s.', $reminder->dueAt()->format('Y-m-d')),
+                'Open reminders',
+                'reminders',
+            );
+        }
+
+        foreach (array_slice($todayReminders, 0, 3) as $reminder) {
+            $attention[] = new DashboardAttentionItemView(
+                sprintf('reminder-today-%s', $reminder->id()),
+                'reminders',
+                'warning',
+                sprintf('Reminder due today: %s', $reminder->title()),
+                $reminder->note() ?? 'Complete or skip this reminder today.',
+                'Open reminders',
+                'reminders',
             );
         }
 
@@ -146,6 +176,18 @@ final readonly class GetDashboardHandler implements QueryHandler
             );
         }
 
+        foreach (array_slice($upcomingReminders, 0, 3) as $reminder) {
+            $attention[] = new DashboardAttentionItemView(
+                sprintf('reminder-upcoming-%s', $reminder->id()),
+                'reminders',
+                'info',
+                sprintf('Reminder due soon: %s', $reminder->title()),
+                sprintf('Due on %s.', $reminder->dueAt()->format('Y-m-d')),
+                'Open reminders',
+                'reminders',
+            );
+        }
+
         $healthReviewMarkers = $this->healthReviewMarkers($latestBloodTests);
         if (count($healthReviewMarkers) > 0) {
             $attention[] = new DashboardAttentionItemView(
@@ -177,6 +219,7 @@ final readonly class GetDashboardHandler implements QueryHandler
             'online',
             [
                 'homeTasksDue' => count($overdueHomeTasks) + count($upcomingHomeTasks),
+                'remindersDue' => count($overdueReminders) + count($todayReminders) + count($upcomingReminders),
                 'inboxItemsDue' => $inbox->summary['total'],
                 'inboxHighestSeverity' => $inbox->summary['highestSeverity'],
                 'monthlySpend' => $expenses->monthTotal,

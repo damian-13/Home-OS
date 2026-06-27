@@ -47,20 +47,20 @@ If the answer is no, do not implement it yet.
 - Health module: blood tests, marker history, out-of-range detection, health documents, lab result extraction/parsing flow.
 - Home Maintenance MVP: one-time and recurring maintenance tasks with due dates, simple recurrence, completion, and Dashboard overdue/upcoming attention.
 - Inbox + Daily Review MVP: thin aggregation of Expenses, Health, and Home review items with source navigation and Dashboard summary.
+- Generic Reminders MVP: household reminders with due dates, simple recurrence, complete/skip, Dashboard attention, and Inbox/Daily Review integration.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
 
 - Backend is already organized by domain with DDD/CQRS-style commands, queries, handlers, repositories, and thin controllers.
 - Expenses has real daily value and useful review workflows.
-- Dashboard is no longer static and already surfaces finance/health/home/inbox attention.
+- Dashboard is no longer static and already surfaces finance/health/home/reminder/inbox attention.
 - Health import flow is practical for historical lab results.
 
 ### Incomplete
 
 - Generic Documents module does not exist; documents are currently health-specific.
-- Generic reminders/tasks do not exist.
-- Dashboard cannot yet show document/reminder signals.
+- Dashboard cannot yet show document expiry signals.
 - No real notification pipeline.
 - No backup/export workflow.
 - No mobile-specific UX beyond responsive CSS.
@@ -70,7 +70,7 @@ If the answer is no, do not implement it yet.
 - `frontend/src/App.tsx` and `frontend/src/App.css` are too large and should be split by feature.
 - Architecture docs mention React Router and TanStack Query, but the app still uses hash routing and local `useState` fetches.
 - No automated backend or frontend tests are present.
-- Shared concepts from docs, such as Attachment, Reminder, AuditLog, and Tag, are not implemented.
+- Shared concepts from docs, such as Attachment, AuditLog, and Tag, are not implemented.
 - File storage is local but not encrypted.
 - Imported finance data exists locally, but bank import UI is not implemented.
 
@@ -258,8 +258,10 @@ Status: completed for the smallest useful version.
 
 ### Milestone 4: Generic Reminders
 
+Status: completed for the smallest useful version. Home Maintenance remains independent for now; optional Home-to-Reminder unification can happen later when it is clearly useful.
+
 - Add household reminders with due date, optional recurrence, related type/id, completed/skipped status.
-- Use reminders for home tasks first.
+- Keep Home Maintenance independent for now; use reminder links for Home later only if it reduces duplication.
 - Dashboard attention: overdue today/upcoming.
 - Acceptance: reminders become reusable infrastructure without overbuilding notifications yet.
 

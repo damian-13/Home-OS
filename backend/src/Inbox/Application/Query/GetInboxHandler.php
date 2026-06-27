@@ -13,6 +13,8 @@ use App\Home\Domain\Model\HomeMaintenanceTask;
 use App\Home\Domain\Repository\HomeMaintenanceRepository;
 use App\Inbox\Application\Dto\InboxItemView;
 use App\Inbox\Application\Dto\InboxView;
+use App\Reminders\Domain\Model\Reminder;
+use App\Reminders\Domain\Repository\ReminderRepository;
 use App\Shared\Application\Query\QueryHandler;
 use DateTimeImmutable;
 
@@ -22,6 +24,7 @@ final readonly class GetInboxHandler implements QueryHandler
         private GetExpenseOverviewHandler $expenseOverview,
         private HealthRepository $health,
         private HomeMaintenanceRepository $homeTasks,
+        private ReminderRepository $reminders,
     ) {
     }
 
@@ -136,6 +139,14 @@ final readonly class GetInboxHandler implements QueryHandler
             $items[] = $this->homeTaskItem($task, 'info', 'Home task due soon', 'Open Home');
         }
 
+        foreach ($this->reminders->overdueReminders($query->householdId, $today, 20) as $reminder) {
+            $items[] = $this->reminderItem($reminder, $reminder->priority() === Reminder::PRIORITY_HIGH ? 'critical' : 'warning', 'Reminder overdue', 'Open reminders');
+        }
+
+        foreach ($this->reminders->dueTodayReminders($query->householdId, $today, 20) as $reminder) {
+            $items[] = $this->reminderItem($reminder, 'warning', 'Reminder due today', 'Open reminders');
+        }
+
         usort($items, static function (InboxItemView $left, InboxItemView $right): int {
             $severityRank = ['critical' => 0, 'warning' => 1, 'info' => 2];
             $severityCompare = ($severityRank[$left->severity] ?? 9) <=> ($severityRank[$right->severity] ?? 9);
@@ -174,6 +185,27 @@ final readonly class GetInboxHandler implements QueryHandler
             $task->createdAt()->format(DATE_ATOM),
             $task->nextDueAt()->format('Y-m-d'),
             $task->status(),
+        );
+    }
+
+    private function reminderItem(Reminder $reminder, string $severity, string $titlePrefix, string $targetAction): InboxItemView
+    {
+        return new InboxItemView(
+            sprintf('reminder-%s', $reminder->id()),
+            'reminders',
+            'reminder',
+            $reminder->id(),
+            $severity,
+            null,
+            sprintf('%s: %s', $titlePrefix, $reminder->title()),
+            $reminder->note() ?? sprintf('Due %s · priority %s.', $reminder->dueAt()->format('Y-m-d'), $reminder->priority()),
+            $targetAction,
+            '#reminders',
+            'reminders',
+            null,
+            $reminder->createdAt()->format(DATE_ATOM),
+            $reminder->dueAt()->format('Y-m-d'),
+            $reminder->status(),
         );
     }
 

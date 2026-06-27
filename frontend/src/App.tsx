@@ -6,6 +6,7 @@ type Dashboard = {
   status: string
   summary: {
     homeTasksDue: number
+    remindersDue: number
     inboxItemsDue: number
     inboxHighestSeverity: 'critical' | 'warning' | 'info' | null
     monthlySpend: number
@@ -17,7 +18,7 @@ type Dashboard = {
   }
   attention: Array<{
     id: string
-    area: 'expenses' | 'health' | 'home'
+    area: 'expenses' | 'health' | 'home' | 'reminders'
     severity: 'critical' | 'warning' | 'info'
     title: string
     detail: string
@@ -245,7 +246,7 @@ type HomeMaintenanceTask = {
 
 type InboxItem = {
   id: string
-  sourceModule: 'expenses' | 'health' | 'home'
+  sourceModule: 'expenses' | 'health' | 'home' | 'reminders'
   sourceType: string
   sourceId: string
   severity: 'critical' | 'warning' | 'info'
@@ -301,7 +302,23 @@ type MarkerFormRow = {
   notes: string
 }
 
-type AppPage = 'dashboard' | 'household' | 'home' | 'inbox' | 'expenses' | 'health' | 'documents'
+type Reminder = {
+  id: string
+  householdId: string
+  title: string
+  note: string | null
+  dueAt: string
+  recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+  relatedType: string | null
+  relatedId: string | null
+  status: 'pending' | 'completed' | 'skipped'
+  priority: 'low' | 'normal' | 'high'
+  createdAt: string
+  completedAt: string | null
+  skippedAt: string | null
+}
+
+type AppPage = 'dashboard' | 'household' | 'home' | 'reminders' | 'inbox' | 'expenses' | 'health' | 'documents'
 type ExpenseSection = 'overview' | 'monthly-review' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
@@ -309,6 +326,7 @@ const fallbackDashboard: Dashboard = {
   status: 'offline',
   summary: {
     homeTasksDue: 0,
+    remindersDue: 0,
     inboxItemsDue: 0,
     inboxHighestSeverity: null,
     monthlySpend: 0,
@@ -393,6 +411,7 @@ function App() {
   const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null)
   const [healthDocuments, setHealthDocuments] = useState<HealthDocument[]>([])
   const [homeTasks, setHomeTasks] = useState<HomeMaintenanceTask[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
   const [inbox, setInbox] = useState<Inbox>({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
@@ -420,6 +439,18 @@ function App() {
   const [editHomeTaskAssignedMemberId, setEditHomeTaskAssignedMemberId] = useState('')
   const [editHomeTaskPriority, setEditHomeTaskPriority] = useState<HomeMaintenanceTask['priority']>('normal')
   const [editHomeTaskNotes, setEditHomeTaskNotes] = useState('')
+  const [openReminderCreator, setOpenReminderCreator] = useState(false)
+  const [reminderTitle, setReminderTitle] = useState('')
+  const [reminderNote, setReminderNote] = useState('')
+  const [reminderDueAt, setReminderDueAt] = useState(today)
+  const [reminderRecurrenceType, setReminderRecurrenceType] = useState<Reminder['recurrenceType']>('none')
+  const [reminderPriority, setReminderPriority] = useState<Reminder['priority']>('normal')
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null)
+  const [editReminderTitle, setEditReminderTitle] = useState('')
+  const [editReminderNote, setEditReminderNote] = useState('')
+  const [editReminderDueAt, setEditReminderDueAt] = useState(today)
+  const [editReminderRecurrenceType, setEditReminderRecurrenceType] = useState<Reminder['recurrenceType']>('none')
+  const [editReminderPriority, setEditReminderPriority] = useState<Reminder['priority']>('normal')
   const [expenseDescription, setExpenseDescription] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
   const [expenseCategoryId, setExpenseCategoryId] = useState('')
@@ -488,7 +519,7 @@ function App() {
     const readPageFromHash = () => {
       const page = window.location.hash.replace('#', '') as AppPage
 
-      if (['dashboard', 'household', 'home', 'inbox', 'expenses', 'health', 'documents'].includes(page)) {
+      if (['dashboard', 'household', 'home', 'reminders', 'inbox', 'expenses', 'health', 'documents'].includes(page)) {
         setActivePage(page)
       }
     }
@@ -519,6 +550,7 @@ function App() {
           apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
           loadDashboard(),
           loadHomeTasks(user.householdId),
+          loadReminders(user.householdId),
           loadInbox(user.householdId),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
@@ -562,6 +594,7 @@ function App() {
       const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
       await loadDashboard()
       await loadHomeTasks(user.householdId)
+      await loadReminders(user.householdId)
       await loadInbox(user.householdId)
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
@@ -586,6 +619,7 @@ function App() {
     setHealthOverview(null)
     setHealthDocuments([])
     setHomeTasks([])
+    setReminders([])
     setInbox({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
     setMarkerHistory([])
     setDashboard(fallbackDashboard)
@@ -636,6 +670,17 @@ function App() {
 
   const loadInbox = async (householdId: string) => {
     setInbox(await apiJson<Inbox>(`/api/households/${householdId}/inbox`))
+  }
+
+  const loadReminders = async (householdId: string) => {
+    const response = await apiJson<{ reminders: Reminder[] }>(`/api/households/${householdId}/reminders`)
+    setReminders(response.reminders)
+  }
+
+  const refreshRemindersDashboardAndInbox = async (householdId: string) => {
+    await loadReminders(householdId)
+    await loadInbox(householdId)
+    await loadDashboard()
   }
 
   const refreshHomeAndDashboard = async (householdId: string) => {
@@ -853,6 +898,135 @@ function App() {
         body: JSON.stringify({}),
       })
       await refreshHomeAndDashboard(household.id)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const addReminder = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ id: string }>(`/api/households/${household.id}/reminders`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: reminderTitle,
+          note: reminderNote || null,
+          dueAt: reminderDueAt,
+          recurrenceType: reminderRecurrenceType,
+          relatedType: null,
+          relatedId: null,
+          priority: reminderPriority,
+        }),
+      })
+      await refreshRemindersDashboardAndInbox(household.id)
+      setReminderTitle('')
+      setReminderNote('')
+      setReminderDueAt(today)
+      setReminderRecurrenceType('none')
+      setReminderPriority('normal')
+      setOpenReminderCreator(false)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const startEditReminder = (reminder: Reminder) => {
+    setEditingReminderId(reminder.id)
+    setEditReminderTitle(reminder.title)
+    setEditReminderNote(reminder.note ?? '')
+    setEditReminderDueAt(reminder.dueAt)
+    setEditReminderRecurrenceType(reminder.recurrenceType)
+    setEditReminderPriority(reminder.priority)
+  }
+
+  const updateReminder = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !editingReminderId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ status: string }>(`/api/households/${household.id}/reminders/${editingReminderId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: editReminderTitle,
+          note: editReminderNote || null,
+          dueAt: editReminderDueAt,
+          recurrenceType: editReminderRecurrenceType,
+          relatedType: null,
+          relatedId: null,
+          priority: editReminderPriority,
+        }),
+      })
+      await refreshRemindersDashboardAndInbox(household.id)
+      setEditingReminderId(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteReminder = async (reminderId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiNoContent(`/api/households/${household.id}/reminders/${reminderId}`, { method: 'DELETE' })
+      await refreshRemindersDashboardAndInbox(household.id)
+      setEditingReminderId((current) => (current === reminderId ? null : current))
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const completeReminder = async (reminderId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ status: string }>(`/api/households/${household.id}/reminders/${reminderId}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      await refreshRemindersDashboardAndInbox(household.id)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const skipReminder = async (reminderId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ status: string }>(`/api/households/${household.id}/reminders/${reminderId}/skip`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      await refreshRemindersDashboardAndInbox(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -1604,6 +1778,26 @@ function App() {
     { label: 'Later', tasks: laterHomeTasks, tone: 'calm' },
     { label: 'Completed', tasks: completedHomeTasks, tone: 'done' },
   ]
+  const pendingReminders = reminders.filter((reminder) => reminder.status === 'pending')
+  const finishedReminders = reminders.filter((reminder) => reminder.status !== 'pending')
+  const overdueReminders = pendingReminders.filter((reminder) => reminder.dueAt < today)
+  const todayReminders = pendingReminders.filter((reminder) => reminder.dueAt === today)
+  const upcomingReminders = pendingReminders.filter((reminder) => {
+    const dueTime = new Date(`${reminder.dueAt}T00:00:00`).getTime()
+    const todayTime = new Date(`${today}T00:00:00`).getTime()
+    const daysUntilDue = (dueTime - todayTime) / (1000 * 60 * 60 * 24)
+
+    return daysUntilDue > 0 && daysUntilDue <= 14
+  })
+  const laterReminders = pendingReminders.filter((reminder) => !overdueReminders.includes(reminder) && !todayReminders.includes(reminder) && !upcomingReminders.includes(reminder))
+  const recurringReminders = reminders.filter((reminder) => reminder.recurrenceType !== 'none')
+  const reminderGroups = [
+    { label: 'Overdue', reminders: overdueReminders, tone: 'danger' },
+    { label: 'Today', reminders: todayReminders, tone: 'warning' },
+    { label: 'Next 14 days', reminders: upcomingReminders, tone: 'calm' },
+    { label: 'Later', reminders: laterReminders, tone: 'calm' },
+    { label: 'Done or skipped', reminders: finishedReminders, tone: 'done' },
+  ]
   const inboxGroups = {
     critical: inbox.items.filter((item) => item.severity === 'critical'),
     warning: inbox.items.filter((item) => item.severity === 'warning'),
@@ -1613,6 +1807,7 @@ function App() {
     expenses: inbox.items.filter((item) => item.sourceModule === 'expenses').length,
     health: inbox.items.filter((item) => item.sourceModule === 'health').length,
     home: inbox.items.filter((item) => item.sourceModule === 'home').length,
+    reminders: inbox.items.filter((item) => item.sourceModule === 'reminders').length,
   }
   const dailyReviewItems = [
     ...dashboard.attention.map((item) => ({
@@ -1805,10 +2000,16 @@ function App() {
       detail: `${homeTasks.length} maintenance tasks tracked`,
     },
     {
+      title: 'Reminders',
+      value: dashboard.summary.remindersDue,
+      label: 'due soon',
+      detail: `${overdueReminders.length} overdue · ${todayReminders.length} today`,
+    },
+    {
       title: 'Inbox',
       value: dashboard.summary.inboxItemsDue,
       label: dashboard.summary.inboxHighestSeverity ?? 'calm',
-      detail: `${inboxSourceTotals.expenses} finance · ${inboxSourceTotals.health} health · ${inboxSourceTotals.home} home`,
+      detail: `${inboxSourceTotals.expenses} finance · ${inboxSourceTotals.health} health · ${inboxSourceTotals.home} home · ${inboxSourceTotals.reminders} reminders`,
     },
     {
       title: 'Expenses',
@@ -1831,6 +2032,16 @@ function App() {
   ]
 
   const dailyActionCards = [
+    {
+      title: 'Reminders due',
+      detail: `${overdueReminders.length} overdue · ${todayReminders.length} today · ${upcomingReminders.length} upcoming`,
+      tone: overdueReminders.length > 0 ? 'danger' : todayReminders.length > 0 ? 'warning' : 'good',
+      action: 'Open reminders',
+      onClick: () => {
+        setActivePage('reminders')
+        window.location.hash = 'reminders'
+      },
+    },
     {
       title: 'Inbox review',
       detail: `${inbox.summary.total} item${inbox.summary.total === 1 ? '' : 's'} · ${inbox.summary.highestSeverity ?? 'calm'}`,
@@ -1888,6 +2099,7 @@ function App() {
     { page: 'dashboard', label: 'Dashboard' },
     { page: 'household', label: 'Household' },
     { page: 'home', label: 'Home' },
+    { page: 'reminders', label: 'Reminders' },
     { page: 'inbox', label: 'Inbox' },
     { page: 'expenses', label: 'Expenses' },
     { page: 'health', label: 'Health' },
@@ -1919,6 +2131,11 @@ function App() {
       eyebrow: 'Home',
       title: 'Maintenance tasks that keep the house running.',
       copy: 'Track one-time and recurring home work, then let the Dashboard remind you what needs action.',
+    },
+    reminders: {
+      eyebrow: 'Reminders',
+      title: 'Reusable reminders for household follow-ups.',
+      copy: 'Track due dates, repeated checks, and future links to documents, health, home, or bills.',
     },
     inbox: {
       eyebrow: 'Inbox',
@@ -2478,6 +2695,174 @@ function App() {
           </section>
         )}
 
+        {activePage === 'reminders' && (
+          <section className="reminders-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Reminders</p>
+                <h2>Due dates and repeated household follow-ups.</h2>
+              </div>
+              <button type="button" onClick={() => setOpenReminderCreator(!openReminderCreator)}>
+                {openReminderCreator ? 'Close form' : 'Add reminder'}
+              </button>
+            </div>
+
+            <div className="reminder-summary-grid">
+              <article className={overdueReminders.length > 0 ? 'danger' : 'good'}>
+                <span>Overdue</span>
+                <strong>{overdueReminders.length}</strong>
+              </article>
+              <article>
+                <span>Today</span>
+                <strong>{todayReminders.length}</strong>
+              </article>
+              <article>
+                <span>Next 14 days</span>
+                <strong>{upcomingReminders.length}</strong>
+              </article>
+              <article>
+                <span>Recurring</span>
+                <strong>{recurringReminders.length}</strong>
+              </article>
+            </div>
+
+            {openReminderCreator && (
+              <section className="reminder-create-panel">
+                <form className="setup-form reminder-form" onSubmit={addReminder}>
+                  <label>
+                    Reminder
+                    <input value={reminderTitle} onChange={(event) => setReminderTitle(event.target.value)} placeholder="Renew insurance, call doctor..." required />
+                  </label>
+                  <label>
+                    Due date
+                    <input type="date" value={reminderDueAt} onChange={(event) => setReminderDueAt(event.target.value)} required />
+                  </label>
+                  <label>
+                    Repeat
+                    <select value={reminderRecurrenceType} onChange={(event) => setReminderRecurrenceType(event.target.value as Reminder['recurrenceType'])}>
+                      <option value="none">One-time</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </label>
+                  <label>
+                    Priority
+                    <select value={reminderPriority} onChange={(event) => setReminderPriority(event.target.value as Reminder['priority'])}>
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                    </select>
+                  </label>
+                  <label className="reminder-note-field">
+                    Note
+                    <input value={reminderNote} onChange={(event) => setReminderNote(event.target.value)} placeholder="Context, phone number, next step..." />
+                  </label>
+                  <button type="submit" disabled={setupState === 'saving'}>
+                    Save reminder
+                  </button>
+                </form>
+              </section>
+            )}
+
+            <div className="reminder-groups">
+              {reminderGroups.map((group) => (
+                <section className={`reminder-group ${group.tone}`} key={group.label}>
+                  <div className="panel-heading-row">
+                    <div>
+                      <p className="eyebrow">{group.label}</p>
+                      <h3>{group.reminders.length} reminder{group.reminders.length === 1 ? '' : 's'}</h3>
+                    </div>
+                  </div>
+
+                  <div className="reminder-list">
+                    {group.reminders.length > 0 ? (
+                      group.reminders.map((reminder) => (
+                        <article className={`reminder-item priority-${reminder.priority} status-${reminder.status}`} key={reminder.id}>
+                          <span className="reminder-priority"></span>
+                          <div className="reminder-main">
+                            <div>
+                              <strong>{reminder.title}</strong>
+                              <small>
+                                due {reminder.dueAt} · {reminder.recurrenceType === 'none' ? 'one-time' : reminder.recurrenceType} · {reminder.priority}
+                              </small>
+                              {reminder.note && <p>{reminder.note}</p>}
+                              {reminder.completedAt && <em>Completed {new Date(reminder.completedAt).toLocaleDateString('pl-PL')}</em>}
+                              {reminder.skippedAt && <em>Skipped {new Date(reminder.skippedAt).toLocaleDateString('pl-PL')}</em>}
+                            </div>
+                            <div className="row-actions">
+                              {reminder.status === 'pending' && (
+                                <>
+                                  <button type="button" onClick={() => completeReminder(reminder.id)} disabled={setupState === 'saving'}>
+                                    Done
+                                  </button>
+                                  <button type="button" onClick={() => skipReminder(reminder.id)} disabled={setupState === 'saving'}>
+                                    Skip
+                                  </button>
+                                </>
+                              )}
+                              <button type="button" onClick={() => startEditReminder(reminder)}>
+                                Edit
+                              </button>
+                              <button type="button" onClick={() => deleteReminder(reminder.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+
+                          {editingReminderId === reminder.id && (
+                            <form className="inline-edit-form reminder-edit-form" onSubmit={updateReminder}>
+                              <label>
+                                Reminder
+                                <input value={editReminderTitle} onChange={(event) => setEditReminderTitle(event.target.value)} required />
+                              </label>
+                              <label>
+                                Due date
+                                <input type="date" value={editReminderDueAt} onChange={(event) => setEditReminderDueAt(event.target.value)} required />
+                              </label>
+                              <label>
+                                Repeat
+                                <select value={editReminderRecurrenceType} onChange={(event) => setEditReminderRecurrenceType(event.target.value as Reminder['recurrenceType'])}>
+                                  <option value="none">One-time</option>
+                                  <option value="daily">Daily</option>
+                                  <option value="weekly">Weekly</option>
+                                  <option value="monthly">Monthly</option>
+                                  <option value="yearly">Yearly</option>
+                                </select>
+                              </label>
+                              <label>
+                                Priority
+                                <select value={editReminderPriority} onChange={(event) => setEditReminderPriority(event.target.value as Reminder['priority'])}>
+                                  <option value="low">Low</option>
+                                  <option value="normal">Normal</option>
+                                  <option value="high">High</option>
+                                </select>
+                              </label>
+                              <label className="reminder-note-field">
+                                Note
+                                <input value={editReminderNote} onChange={(event) => setEditReminderNote(event.target.value)} />
+                              </label>
+                              <div className="inline-edit-actions">
+                                <button type="submit" disabled={setupState === 'saving'}>Save</button>
+                                <button type="button" onClick={() => setEditingReminderId(null)}>Cancel</button>
+                              </div>
+                            </form>
+                          )}
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">No {group.label.toLocaleLowerCase('en-US')} reminders.</p>
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
+
+            {setupState === 'error' && <p className="form-error">Could not save reminder data.</p>}
+          </section>
+        )}
+
         {activePage === 'inbox' && (
           <section className="inbox-panel page-card">
             <div className="section-heading">
@@ -2507,6 +2892,10 @@ function App() {
               <article>
                 <span>Home</span>
                 <strong>{inboxSourceTotals.home}</strong>
+              </article>
+              <article>
+                <span>Reminders</span>
+                <strong>{inboxSourceTotals.reminders}</strong>
               </article>
             </div>
 
