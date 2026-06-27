@@ -10,6 +10,8 @@ use App\Health\Domain\Model\BloodTestMarker;
 use App\Health\Domain\Repository\HealthRepository;
 use App\Home\Domain\Model\HomeMaintenanceTask;
 use App\Home\Domain\Repository\HomeMaintenanceRepository;
+use App\Inbox\Application\Query\GetInboxHandler;
+use App\Inbox\Application\Query\GetInboxQuery;
 use App\Shared\Application\Query\QueryHandler;
 use DateTimeImmutable;
 
@@ -19,6 +21,7 @@ final readonly class GetDashboardHandler implements QueryHandler
         private GetExpenseOverviewHandler $expenseOverview,
         private HealthRepository $health,
         private HomeMaintenanceRepository $homeTasks,
+        private GetInboxHandler $inbox,
     ) {
     }
 
@@ -37,6 +40,7 @@ final readonly class GetDashboardHandler implements QueryHandler
         $today = new DateTimeImmutable('today');
         $overdueHomeTasks = $this->homeTasks->overdueTasks($query->householdId, $today, 5);
         $upcomingHomeTasks = $this->homeTasks->upcomingTasks($query->householdId, $today, 14, 5);
+        $inbox = ($this->inbox)(new GetInboxQuery($query->householdId));
         $attention = [];
 
         if ($expenses->projectedMonthEndBalance < 0) {
@@ -173,6 +177,8 @@ final readonly class GetDashboardHandler implements QueryHandler
             'online',
             [
                 'homeTasksDue' => count($overdueHomeTasks) + count($upcomingHomeTasks),
+                'inboxItemsDue' => $inbox->summary['total'],
+                'inboxHighestSeverity' => $inbox->summary['highestSeverity'],
                 'monthlySpend' => $expenses->monthTotal,
                 'projectedBalance' => $expenses->projectedMonthEndBalance,
                 'financeReviewCount' => (int) ($expenses->review['needsReviewCount'] ?? 0),

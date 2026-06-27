@@ -6,6 +6,8 @@ type Dashboard = {
   status: string
   summary: {
     homeTasksDue: number
+    inboxItemsDue: number
+    inboxHighestSeverity: 'critical' | 'warning' | 'info' | null
     monthlySpend: number
     projectedBalance: number
     financeReviewCount: number
@@ -241,6 +243,35 @@ type HomeMaintenanceTask = {
   completedAt: string | null
 }
 
+type InboxItem = {
+  id: string
+  sourceModule: 'expenses' | 'health' | 'home'
+  sourceType: string
+  sourceId: string
+  severity: 'critical' | 'warning' | 'info'
+  confidence: number | null
+  title: string
+  detail: string
+  targetAction: string
+  targetUrl: string
+  targetPage: AppPage
+  targetSection: ExpenseSection | null
+  detectedAt: string
+  dueAt: string | null
+  status: string | null
+}
+
+type Inbox = {
+  items: InboxItem[]
+  summary: {
+    total: number
+    critical: number
+    warning: number
+    info: number
+    highestSeverity: 'critical' | 'warning' | 'info' | null
+  }
+}
+
 type DocumentExtraction = {
   documentId: string
   status: 'extracted' | 'empty' | 'failed' | 'missing_file' | 'tool_missing' | 'unsupported'
@@ -270,7 +301,7 @@ type MarkerFormRow = {
   notes: string
 }
 
-type AppPage = 'dashboard' | 'household' | 'home' | 'expenses' | 'health' | 'documents'
+type AppPage = 'dashboard' | 'household' | 'home' | 'inbox' | 'expenses' | 'health' | 'documents'
 type ExpenseSection = 'overview' | 'monthly-review' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
@@ -278,6 +309,8 @@ const fallbackDashboard: Dashboard = {
   status: 'offline',
   summary: {
     homeTasksDue: 0,
+    inboxItemsDue: 0,
+    inboxHighestSeverity: null,
     monthlySpend: 0,
     projectedBalance: 0,
     financeReviewCount: 0,
@@ -360,6 +393,7 @@ function App() {
   const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null)
   const [healthDocuments, setHealthDocuments] = useState<HealthDocument[]>([])
   const [homeTasks, setHomeTasks] = useState<HomeMaintenanceTask[]>([])
+  const [inbox, setInbox] = useState<Inbox>({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -454,7 +488,7 @@ function App() {
     const readPageFromHash = () => {
       const page = window.location.hash.replace('#', '') as AppPage
 
-      if (['dashboard', 'household', 'home', 'expenses', 'health', 'documents'].includes(page)) {
+      if (['dashboard', 'household', 'home', 'inbox', 'expenses', 'health', 'documents'].includes(page)) {
         setActivePage(page)
       }
     }
@@ -485,6 +519,7 @@ function App() {
           apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
           loadDashboard(),
           loadHomeTasks(user.householdId),
+          loadInbox(user.householdId),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
           loadHealthDocuments(user.householdId),
@@ -527,6 +562,7 @@ function App() {
       const nextHousehold = await apiJson<Household>(`/api/households/${user.householdId}`)
       await loadDashboard()
       await loadHomeTasks(user.householdId)
+      await loadInbox(user.householdId)
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
       await loadHealthDocuments(user.householdId)
@@ -550,6 +586,7 @@ function App() {
     setHealthOverview(null)
     setHealthDocuments([])
     setHomeTasks([])
+    setInbox({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
     setMarkerHistory([])
     setDashboard(fallbackDashboard)
     window.localStorage.removeItem(householdStorageKey)
@@ -582,6 +619,13 @@ function App() {
 
   const refreshExpenseAndDashboard = async (householdId: string) => {
     await loadExpenseOverview(householdId)
+    await loadInbox(householdId)
+    await loadDashboard()
+  }
+
+  const refreshHealthAndInbox = async (householdId: string) => {
+    await loadHealthOverview(householdId)
+    await loadInbox(householdId)
     await loadDashboard()
   }
 
@@ -590,8 +634,13 @@ function App() {
     setHomeTasks(response.tasks)
   }
 
+  const loadInbox = async (householdId: string) => {
+    setInbox(await apiJson<Inbox>(`/api/households/${householdId}/inbox`))
+  }
+
   const refreshHomeAndDashboard = async (householdId: string) => {
     await loadHomeTasks(householdId)
+    await loadInbox(householdId)
     await loadDashboard()
   }
 
@@ -1345,7 +1394,7 @@ function App() {
           markers: markerPayload(markerRows),
         }),
       })
-      await loadHealthOverview(household.id)
+      await refreshHealthAndInbox(household.id)
       setBloodTestTestedAt(today)
       setBloodTestLabName('')
       setBloodTestNotes('')
@@ -1378,7 +1427,7 @@ function App() {
           markers: markerPayload(importMarkerRows),
         }),
       })
-      await loadHealthOverview(household.id)
+      await refreshHealthAndInbox(household.id)
       setImportDocument(null)
       setImportSuggestedTestedAt('')
       setImportLabName('')
@@ -1454,7 +1503,7 @@ function App() {
           markers: markerPayload(editMarkerRows),
         }),
       })
-      await loadHealthOverview(household.id)
+      await refreshHealthAndInbox(household.id)
       if (selectedMarkerName) {
         await loadMarkerHistory(household.id, selectedMarkerName)
       }
@@ -1474,7 +1523,7 @@ function App() {
 
     try {
       await apiNoContent(`/api/households/${household.id}/health/blood-tests/${bloodTestId}`, { method: 'DELETE' })
-      await loadHealthOverview(household.id)
+      await refreshHealthAndInbox(household.id)
       if (selectedMarkerName) {
         await loadMarkerHistory(household.id, selectedMarkerName)
       }
@@ -1555,6 +1604,36 @@ function App() {
     { label: 'Later', tasks: laterHomeTasks, tone: 'calm' },
     { label: 'Completed', tasks: completedHomeTasks, tone: 'done' },
   ]
+  const inboxGroups = {
+    critical: inbox.items.filter((item) => item.severity === 'critical'),
+    warning: inbox.items.filter((item) => item.severity === 'warning'),
+    info: inbox.items.filter((item) => item.severity === 'info'),
+  }
+  const inboxSourceTotals = {
+    expenses: inbox.items.filter((item) => item.sourceModule === 'expenses').length,
+    health: inbox.items.filter((item) => item.sourceModule === 'health').length,
+    home: inbox.items.filter((item) => item.sourceModule === 'home').length,
+  }
+  const dailyReviewItems = [
+    ...dashboard.attention.map((item) => ({
+      id: `dashboard-${item.id}`,
+      severity: item.severity,
+      title: item.title,
+      detail: item.detail,
+      actionLabel: item.actionLabel,
+      targetPage: item.targetPage,
+      targetSection: item.targetSection,
+    })),
+    ...inbox.items.filter((item) => item.severity !== 'info').slice(0, 8).map((item) => ({
+      id: `inbox-${item.id}`,
+      severity: item.severity,
+      title: item.title,
+      detail: item.detail,
+      actionLabel: item.targetAction,
+      targetPage: item.targetPage,
+      targetSection: item.targetSection,
+    })),
+  ].filter((item, index, items) => items.findIndex((candidate) => candidate.title === item.title) === index).slice(0, 10)
   const billChecklistItems = [
     ...(expenseOverview?.billChecklist.overdue ?? []),
     ...(expenseOverview?.billChecklist.upcoming ?? []),
@@ -1703,6 +1782,15 @@ function App() {
     }
   }
 
+  const openInboxTarget = (item: Pick<InboxItem, 'targetPage' | 'targetSection'>) => {
+    setActivePage(item.targetPage)
+    window.location.hash = item.targetPage
+
+    if (item.targetPage === 'expenses' && item.targetSection) {
+      setExpenseSection(item.targetSection)
+    }
+  }
+
   const openExpensesSection = (section: ExpenseSection) => {
     setActivePage('expenses')
     setExpenseSection(section)
@@ -1715,6 +1803,12 @@ function App() {
       value: dashboard.summary.homeTasksDue,
       label: 'tasks due',
       detail: `${homeTasks.length} maintenance tasks tracked`,
+    },
+    {
+      title: 'Inbox',
+      value: dashboard.summary.inboxItemsDue,
+      label: dashboard.summary.inboxHighestSeverity ?? 'calm',
+      detail: `${inboxSourceTotals.expenses} finance · ${inboxSourceTotals.health} health · ${inboxSourceTotals.home} home`,
     },
     {
       title: 'Expenses',
@@ -1737,6 +1831,16 @@ function App() {
   ]
 
   const dailyActionCards = [
+    {
+      title: 'Inbox review',
+      detail: `${inbox.summary.total} item${inbox.summary.total === 1 ? '' : 's'} · ${inbox.summary.highestSeverity ?? 'calm'}`,
+      tone: inbox.summary.highestSeverity === 'critical' ? 'danger' : inbox.summary.highestSeverity === 'warning' ? 'warning' : 'good',
+      action: 'Open inbox',
+      onClick: () => {
+        setActivePage('inbox')
+        window.location.hash = 'inbox'
+      },
+    },
     {
       title: 'Review imported money',
       detail: `${financeReview?.needsReviewCount ?? 0} row${(financeReview?.needsReviewCount ?? 0) === 1 ? '' : 's'} need trust check`,
@@ -1784,6 +1888,7 @@ function App() {
     { page: 'dashboard', label: 'Dashboard' },
     { page: 'household', label: 'Household' },
     { page: 'home', label: 'Home' },
+    { page: 'inbox', label: 'Inbox' },
     { page: 'expenses', label: 'Expenses' },
     { page: 'health', label: 'Health' },
     { page: 'documents', label: 'Documents' },
@@ -1814,6 +1919,11 @@ function App() {
       eyebrow: 'Home',
       title: 'Maintenance tasks that keep the house running.',
       copy: 'Track one-time and recurring home work, then let the Dashboard remind you what needs action.',
+    },
+    inbox: {
+      eyebrow: 'Inbox',
+      title: 'One place to review what needs attention.',
+      copy: 'A thin review layer over Expenses, Health, and Home maintenance without duplicating source data.',
     },
     expenses: {
       eyebrow: 'Expenses',
@@ -2365,6 +2475,112 @@ function App() {
             </div>
 
             {setupState === 'error' && <p className="form-error">Could not save home maintenance data.</p>}
+          </section>
+        )}
+
+        {activePage === 'inbox' && (
+          <section className="inbox-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Daily Review</p>
+                <h2>Start with what needs a decision.</h2>
+              </div>
+              <button type="button" onClick={() => household && loadInbox(household.id)}>
+                Refresh
+              </button>
+            </div>
+
+            <div className="inbox-summary-grid">
+              <article className={inbox.summary.critical > 0 ? 'danger' : 'good'}>
+                <span>Total</span>
+                <strong>{inbox.summary.total}</strong>
+                <small>{inbox.summary.highestSeverity ?? 'calm'}</small>
+              </article>
+              <article>
+                <span>Expenses</span>
+                <strong>{inboxSourceTotals.expenses}</strong>
+              </article>
+              <article>
+                <span>Health</span>
+                <strong>{inboxSourceTotals.health}</strong>
+              </article>
+              <article>
+                <span>Home</span>
+                <strong>{inboxSourceTotals.home}</strong>
+              </article>
+            </div>
+
+            <section className="daily-review-panel">
+              <div>
+                <p className="eyebrow">Today</p>
+                <h3>Daily review checklist</h3>
+                <p className="panel-copy">Dashboard actions and high-priority Inbox items are shown here first.</p>
+              </div>
+
+              <div className="daily-review-list">
+                {dailyReviewItems.length > 0 ? (
+                  dailyReviewItems.map((item) => (
+                    <article className={`daily-review-item severity-${item.severity}`} key={item.id}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <small>{item.detail}</small>
+                      </div>
+                      <button type="button" onClick={() => openInboxTarget(item)}>
+                        {item.actionLabel}
+                      </button>
+                    </article>
+                  ))
+                ) : (
+                  <p className="empty-state">Everything important looks calm for today.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="inbox-items-panel">
+              <div>
+                <p className="eyebrow">Inbox</p>
+                <h3>Review queue by urgency</h3>
+                <p className="panel-copy">Items stay owned by their source module. Inbox only points you to the right workflow.</p>
+              </div>
+
+              <div className="inbox-group-list">
+                {(Object.keys(inboxGroups) as Array<InboxItem['severity']>).map((severity) => (
+                  <section className={`inbox-group severity-${severity}`} key={severity}>
+                    <div className="panel-heading-row">
+                      <div>
+                        <p className="eyebrow">{severity}</p>
+                        <h3>{inboxGroups[severity].length} item{inboxGroups[severity].length === 1 ? '' : 's'}</h3>
+                      </div>
+                    </div>
+
+                    <div className="inbox-item-list">
+                      {inboxGroups[severity].length > 0 ? (
+                        inboxGroups[severity].map((item) => (
+                          <article className={`inbox-item source-${item.sourceModule}`} key={item.id}>
+                            <span></span>
+                            <div>
+                              <strong>{item.title}</strong>
+                              <small>
+                                {item.sourceModule} · {item.sourceType.replaceAll('_', ' ')}
+                                {item.dueAt ? ` · due ${item.dueAt}` : ` · detected ${item.detectedAt.slice(0, 10)}`}
+                              </small>
+                              <p>{item.detail}</p>
+                            </div>
+                            <button type="button" onClick={() => openInboxTarget(item)}>
+                              {item.targetAction}
+                            </button>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="empty-state">No {severity} inbox items.</p>
+                      )}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </section>
+
+            {setupState === 'error' && <p className="form-error">Could not load Inbox data.</p>}
           </section>
         )}
 

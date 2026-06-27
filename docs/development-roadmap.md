@@ -46,13 +46,14 @@ If the answer is no, do not implement it yet.
 - Expenses module: manual expenses, categories, income, budgets, recurring bills, monthly bill payments, import review, saved review rules, undo batches, analytics, and monthly review.
 - Health module: blood tests, marker history, out-of-range detection, health documents, lab result extraction/parsing flow.
 - Home Maintenance MVP: one-time and recurring maintenance tasks with due dates, simple recurrence, completion, and Dashboard overdue/upcoming attention.
+- Inbox + Daily Review MVP: thin aggregation of Expenses, Health, and Home review items with source navigation and Dashboard summary.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
 
 - Backend is already organized by domain with DDD/CQRS-style commands, queries, handlers, repositories, and thin controllers.
 - Expenses has real daily value and useful review workflows.
-- Dashboard is no longer static and already surfaces finance/health/home attention.
+- Dashboard is no longer static and already surfaces finance/health/home/inbox attention.
 - Health import flow is practical for historical lab results.
 
 ### Incomplete
@@ -86,8 +87,8 @@ If the answer is no, do not implement it yet.
 ### Missing UX
 
 - Dashboard is useful, but it should evolve from information display into a Decision Center focused on "What should I do today?"
-- There is no central Inbox for imported, parsed, suggested, failed, duplicate, or uncertain items.
-- Review workflows exist inside Expenses, but there is no cross-module Daily/Weekly/Monthly Review habit.
+- Inbox exists for current Expenses, Health, and Home signals, but does not yet cover future documents, OCR failures, duplicates, AI suggestions, or persistent dismissals.
+- Daily Review exists as a lightweight Inbox section, but Weekly Review remains future work.
 - Document archive with expiry reminders.
 - Health review queue.
 - Better onboarding/default data setup.
@@ -246,6 +247,8 @@ Status: completed.
 - Acceptance: user can track recurring home tasks and see due work on Dashboard.
 
 ### Milestone 3: Inbox + Reviews MVP
+
+Status: completed for the smallest useful version.
 
 - Add a global Inbox page/section that aggregates existing review queues from Expenses and Health first.
 - Inbox items should have source module, severity/confidence, title, detail, target action, and reviewed/dismissed state where supported.

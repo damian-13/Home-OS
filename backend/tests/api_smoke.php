@@ -195,6 +195,34 @@ assertTrue(is_array($expenses['body']['categories'] ?? null), 'Expense overview 
 assertTrue(count($expenses['body']['categories']) > 0, 'Expense overview should create default categories.');
 assertTrue(is_array($expenses['body']['activeFilters'] ?? null), 'Expense overview should include active filters.');
 
+$categoryId = (string) $expenses['body']['categories'][0]['id'];
+$reviewExpense = apiRequest('POST', sprintf('/api/households/%s/expenses', rawurlencode($householdId)), [
+    'categoryId' => $categoryId,
+    'description' => 'Smoke inbox uncertain expense',
+    'amount' => 12.34,
+    'spentOn' => (new DateTimeImmutable())->format('Y-m-d'),
+    'paidByMemberId' => null,
+]);
+
+assertTrue($reviewExpense['status'] === 201, 'Smoke review expense create should return 201.');
+assertTrue(is_string($reviewExpense['body']['id'] ?? null), 'Smoke review expense create should return id.');
+
+$markExpenseForReview = apiRequest('PATCH', sprintf(
+    '/api/households/%s/expenses/%s',
+    rawurlencode($householdId),
+    rawurlencode((string) $reviewExpense['body']['id']),
+), [
+    'categoryId' => $categoryId,
+    'description' => 'Smoke inbox uncertain expense',
+    'amount' => 12.34,
+    'spentOn' => (new DateTimeImmutable())->format('Y-m-d'),
+    'paidByMemberId' => null,
+    'reviewStatus' => 'needs_review',
+    'reviewReason' => 'Smoke test item needs review',
+]);
+
+assertTrue($markExpenseForReview['status'] === 200, 'Smoke review expense update should return 200.');
+
 $yesterday = (new DateTimeImmutable('yesterday'))->format('Y-m-d');
 $tomorrow = (new DateTimeImmutable('tomorrow'))->format('Y-m-d');
 
@@ -292,6 +320,47 @@ $homeAttention = array_values(array_filter(
 assertTrue(($dashboardWithHome['body']['summary']['homeTasksDue'] ?? 0) >= 2, 'Dashboard should count due home tasks.');
 assertTrue(count($homeAttention) >= 2, 'Dashboard should include home overdue and upcoming attention items.');
 assertTrue(in_array('home', array_column($homeAttention, 'targetPage'), true), 'Home attention should navigate to Home page.');
+
+$memberId = (string) ($user['linkedMemberId'] ?? '');
+$bloodTest = apiRequest('POST', sprintf('/api/households/%s/health/blood-tests', rawurlencode($householdId)), [
+    'memberId' => $memberId,
+    'testedAt' => (new DateTimeImmutable())->format('Y-m-d'),
+    'labName' => 'Smoke Lab',
+    'notes' => null,
+    'markers' => [[
+        'markerName' => 'Smoke LDL',
+        'value' => 220,
+        'unit' => 'mg/dl',
+        'referenceMin' => 0,
+        'referenceMax' => 100,
+        'status' => 'high',
+        'notes' => null,
+    ]],
+]);
+
+assertTrue($bloodTest['status'] === 201, 'Smoke out-of-range blood test create should return 201.');
+
+$inbox = apiRequest('GET', sprintf('/api/households/%s/inbox', rawurlencode($householdId)));
+
+assertTrue($inbox['status'] === 200, 'Inbox should return 200 for household member.');
+assertTrue(is_array($inbox['body']['items'] ?? null), 'Inbox should include items list.');
+assertTrue(is_array($inbox['body']['summary'] ?? null), 'Inbox should include summary.');
+assertTrue(($inbox['body']['summary']['total'] ?? 0) >= 3, 'Inbox should aggregate multiple review items.');
+
+$inboxSources = array_values(array_unique(array_map(
+    static fn (array $item): string => (string) ($item['sourceModule'] ?? ''),
+    $inbox['body']['items'],
+)));
+
+assertTrue(in_array('expenses', $inboxSources, true), 'Inbox should include expense review items.');
+assertTrue(in_array('health', $inboxSources, true), 'Inbox should include health review items.');
+assertTrue(in_array('home', $inboxSources, true), 'Inbox should include home maintenance items.');
+
+$dashboardWithInbox = apiRequest('GET', '/api/dashboard');
+
+assertTrue(array_key_exists('inboxItemsDue', $dashboardWithInbox['body']['summary'] ?? []), 'Dashboard summary should include inbox item count.');
+assertTrue(($dashboardWithInbox['body']['summary']['inboxItemsDue'] ?? 0) >= 3, 'Dashboard inbox count should reflect review items.');
+assertTrue(($dashboardWithInbox['body']['summary']['inboxHighestSeverity'] ?? null) !== null, 'Dashboard summary should include inbox highest severity.');
 
 $health = apiRequest('GET', sprintf('/api/households/%s/health/overview', rawurlencode($householdId)));
 
