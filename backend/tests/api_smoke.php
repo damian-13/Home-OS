@@ -668,18 +668,45 @@ $bloodTest = apiRequest('POST', sprintf('/api/households/%s/health/blood-tests',
     'testedAt' => (new DateTimeImmutable())->format('Y-m-d'),
     'labName' => 'Smoke Lab',
     'notes' => null,
-    'markers' => [[
-        'markerName' => 'Smoke LDL',
-        'value' => 220,
-        'unit' => 'mg/dl',
-        'referenceMin' => 0,
-        'referenceMax' => 100,
-        'status' => 'high',
-        'notes' => null,
-    ]],
+    'markers' => [
+        [
+            'markerName' => 'Smoke LDL',
+            'value' => 220,
+            'unit' => 'mg/dl',
+            'referenceMin' => 0,
+            'referenceMax' => 100,
+            'status' => 'high',
+            'notes' => null,
+        ],
+        [
+            'markerName' => 'TSH',
+            'value' => 3.4,
+            'unit' => 'wrong-unit',
+            'referenceMin' => null,
+            'referenceMax' => null,
+            'status' => 'unknown',
+            'notes' => 'Smoke health review cleanup marker',
+        ],
+    ],
 ]);
 
 assertTrue($bloodTest['status'] === 201, 'Smoke out-of-range blood test create should return 201.');
+
+$healthReview = apiRequest('GET', sprintf('/api/households/%s/health/review', rawurlencode($householdId)));
+
+assertTrue($healthReview['status'] === 200, 'Health review should return 200 for household member.');
+assertTrue(is_array($healthReview['body']['items'] ?? null), 'Health review should include items list.');
+assertTrue(($healthReview['body']['summary']['total'] ?? 0) >= 3, 'Health review should include multiple deterministic review items.');
+
+$healthReviewTypes = array_values(array_unique(array_map(
+    static fn (array $item): string => (string) ($item['type'] ?? ''),
+    $healthReview['body']['items'],
+)));
+
+assertTrue(in_array('out_of_range_result', $healthReviewTypes, true), 'Health review should include out-of-range items.');
+assertTrue(in_array('unknown_marker', $healthReviewTypes, true), 'Health review should include unknown marker/status items.');
+assertTrue(in_array('missing_reference_range', $healthReviewTypes, true), 'Health review should include missing reference range items.');
+assertTrue(in_array('suspicious_unit', $healthReviewTypes, true), 'Health review should include suspicious unit items.');
 
 $inbox = apiRequest('GET', sprintf('/api/households/%s/inbox', rawurlencode($householdId)));
 
@@ -698,6 +725,13 @@ assertTrue(in_array('health', $inboxSources, true), 'Inbox should include health
 assertTrue(in_array('home', $inboxSources, true), 'Inbox should include home maintenance items.');
 assertTrue(in_array('reminders', $inboxSources, true), 'Inbox should include due reminder items.');
 assertTrue(in_array('documents', $inboxSources, true), 'Inbox should include expired and expiring document items.');
+
+$healthReviewInboxItems = array_values(array_filter(
+    $inbox['body']['items'] ?? [],
+    static fn (array $item): bool => ($item['sourceModule'] ?? null) === 'health' && in_array(($item['sourceType'] ?? null), ['out_of_range_result', 'unknown_marker', 'missing_reference_range', 'suspicious_unit'], true),
+));
+
+assertTrue(count($healthReviewInboxItems) >= 3, 'Inbox should include Health Review data-quality items.');
 
 $search = apiRequest('GET', sprintf('/api/households/%s/search?q=Smoke', rawurlencode($householdId)));
 
@@ -747,6 +781,15 @@ $dashboardWithInbox = apiRequest('GET', '/api/dashboard');
 assertTrue(array_key_exists('inboxItemsDue', $dashboardWithInbox['body']['summary'] ?? []), 'Dashboard summary should include inbox item count.');
 assertTrue(($dashboardWithInbox['body']['summary']['inboxItemsDue'] ?? 0) >= 3, 'Dashboard inbox count should reflect review items.');
 assertTrue(($dashboardWithInbox['body']['summary']['inboxHighestSeverity'] ?? null) !== null, 'Dashboard summary should include inbox highest severity.');
+assertTrue(($dashboardWithInbox['body']['summary']['healthReviewCount'] ?? 0) >= 3, 'Dashboard should include health review count.');
+assertTrue(($dashboardWithInbox['body']['summary']['healthReviewCritical'] ?? 0) >= 1, 'Dashboard should include critical health review count.');
+
+$healthReviewAttention = array_values(array_filter(
+    $dashboardWithInbox['body']['attention'] ?? [],
+    static fn (array $item): bool => ($item['id'] ?? null) === 'health-review' && ($item['targetPage'] ?? null) === 'health-review',
+));
+
+assertTrue(count($healthReviewAttention) === 1, 'Dashboard should link to Health Review Center.');
 
 $health = apiRequest('GET', sprintf('/api/households/%s/health/overview', rawurlencode($householdId)));
 

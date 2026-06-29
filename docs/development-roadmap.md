@@ -50,6 +50,7 @@ If the answer is no, do not implement it yet.
 - Generic Reminders MVP: household reminders with due dates, simple recurrence, complete/skip, Dashboard attention, and Inbox/Daily Review integration.
 - Generic Documents MVP: household document metadata, optional file upload/download, soft delete, expiry dates, Dashboard attention, and Inbox/Daily Review integration.
 - Search + Timeline Foundation: read-only global search across implemented modules and deterministic household activity timeline.
+- Health Review Center: deterministic health data-quality queue for out-of-range, unknown, suspicious, duplicate-looking, and stale lab data.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
@@ -89,7 +90,6 @@ If the answer is no, do not implement it yet.
 - Dashboard is useful, but it should evolve from information display into a Decision Center focused on "What should I do today?"
 - Inbox exists for current Expenses, Health, Home, Reminders, and Documents signals, but does not yet cover future OCR failures, duplicates, AI suggestions, or persistent dismissals.
 - Daily Review exists as a lightweight Inbox section, but Weekly Review remains future work.
-- Health review queue.
 - Better onboarding/default data setup.
 - Mobile bottom navigation and mobile-first quick entry.
 - Notification preferences.
@@ -283,6 +283,8 @@ Status: completed for the smallest useful version. Search and Timeline are read-
 - Acceptance: user can find records without knowing the module and can see chronological household history.
 
 ### Milestone 7: Health Review Center
+
+Status: completed for the smallest useful version. Review items are deterministic and source-data-based; no diagnosis, AI advice, acknowledgement workflow, or persisted marker mapping was introduced.
 
 - Add a dedicated Health review section for unknown markers, suspicious references, out-of-range results, stale markers.
 - Add fast cleanup/edit actions.

@@ -7,6 +7,8 @@ use App\Dashboard\Application\Dto\DashboardView;
 use App\Documents\Domain\Repository\DocumentRepository;
 use App\Expenses\Application\Query\GetExpenseOverviewHandler;
 use App\Expenses\Application\Query\GetExpenseOverviewQuery;
+use App\Health\Application\Query\GetHealthReviewHandler;
+use App\Health\Application\Query\GetHealthReviewQuery;
 use App\Health\Domain\Model\BloodTestMarker;
 use App\Health\Domain\Repository\HealthRepository;
 use App\Home\Domain\Model\HomeMaintenanceTask;
@@ -23,6 +25,7 @@ final readonly class GetDashboardHandler implements QueryHandler
     public function __construct(
         private GetExpenseOverviewHandler $expenseOverview,
         private HealthRepository $health,
+        private GetHealthReviewHandler $healthReview,
         private HomeMaintenanceRepository $homeTasks,
         private GetInboxHandler $inbox,
         private ReminderRepository $reminders,
@@ -39,9 +42,9 @@ final readonly class GetDashboardHandler implements QueryHandler
     {
         $month = (new DateTimeImmutable())->format('Y-m');
         $expenses = ($this->expenseOverview)(new GetExpenseOverviewQuery($query->householdId, $month));
-        $latestBloodTests = $this->health->latestBloodTests($query->householdId, null, 20);
         $outOfRangeMarkers = $this->health->latestOutOfRangeMarkers($query->householdId, null, 20);
         $markerNames = $this->health->markerNames($query->householdId);
+        $healthReview = ($this->healthReview)(new GetHealthReviewQuery($query->householdId));
         $today = new DateTimeImmutable('today');
         $overdueHomeTasks = $this->homeTasks->overdueTasks($query->householdId, $today, 5);
         $upcomingHomeTasks = $this->homeTasks->upcomingTasks($query->householdId, $today, 14, 5);
@@ -216,16 +219,15 @@ final readonly class GetDashboardHandler implements QueryHandler
             );
         }
 
-        $healthReviewMarkers = $this->healthReviewMarkers($latestBloodTests);
-        if (count($healthReviewMarkers) > 0) {
+        if ($healthReview['summary']['total'] > 0) {
             $attention[] = new DashboardAttentionItemView(
-                'health-marker-review',
+                'health-review',
                 'health',
-                'warning',
-                sprintf('%d health marker%s need cleanup', count($healthReviewMarkers), count($healthReviewMarkers) === 1 ? '' : 's'),
-                'Some imported markers have unknown status, missing units, or suspicious reference ranges.',
-                'Review health',
-                'health',
+                $healthReview['summary']['critical'] > 0 ? 'critical' : 'warning',
+                sprintf('%d health review item%s need cleanup', $healthReview['summary']['total'], $healthReview['summary']['total'] === 1 ? '' : 's'),
+                sprintf('%d critical and %d warning health data-quality items are waiting.', $healthReview['summary']['critical'], $healthReview['summary']['warning']),
+                'Open review',
+                'health-review',
             );
         }
 
@@ -237,8 +239,8 @@ final readonly class GetDashboardHandler implements QueryHandler
                 'info',
                 sprintf('%d marker%s not checked for over a year', count($staleMarkerNames), count($staleMarkerNames) === 1 ? ' was' : 's were'),
                 implode(', ', array_slice($staleMarkerNames, 0, 4)),
-                'Open health',
-                'health',
+                'Open review',
+                'health-review',
             );
         }
 
@@ -255,28 +257,12 @@ final readonly class GetDashboardHandler implements QueryHandler
                 'financeReviewCount' => (int) ($expenses->review['needsReviewCount'] ?? 0),
                 'healthMarkersTracked' => count($markerNames),
                 'healthOutOfRange' => count($outOfRangeMarkers),
+                'healthReviewCount' => $healthReview['summary']['total'],
+                'healthReviewCritical' => $healthReview['summary']['critical'],
                 'documentsStored' => $this->documents->countDocuments($query->householdId),
             ],
             $attention,
         );
-    }
-
-    /**
-     * @param list<object> $bloodTests
-     * @return list<BloodTestMarker>
-     */
-    private function healthReviewMarkers(array $bloodTests): array
-    {
-        $markers = [];
-        foreach ($bloodTests as $bloodTest) {
-            foreach ($bloodTest->markers() as $marker) {
-                if ($marker->status() === 'unknown' || trim($marker->unit()) === '' || ($marker->referenceMin() !== null && $marker->referenceMax() !== null && $marker->referenceMin() > $marker->referenceMax())) {
-                    $markers[] = $marker;
-                }
-            }
-        }
-
-        return $markers;
     }
 
     /**

@@ -14,6 +14,8 @@ type Dashboard = {
     financeReviewCount: number
     healthMarkersTracked: number
     healthOutOfRange: number
+    healthReviewCount: number
+    healthReviewCritical: number
     documentsStored: number
   }
   attention: Array<{
@@ -229,6 +231,33 @@ type HealthDocument = {
   downloadUrl: string
 }
 
+type HealthReviewItem = {
+  id: string
+  type: 'out_of_range_result' | 'missing_reference_range' | 'unknown_marker' | 'suspicious_unit' | 'duplicate_result_candidate' | 'stale_marker'
+  severity: 'critical' | 'warning' | 'info'
+  title: string
+  detail: string
+  memberId: string | null
+  markerId: string | null
+  labTestId: string | null
+  resultId: string | null
+  detectedAt: string
+  targetUrl: string
+  suggestedAction: string
+}
+
+type HealthReview = {
+  items: HealthReviewItem[]
+  summary: {
+    total: number
+    critical: number
+    warning: number
+    info: number
+  }
+  supportedTypes: string[]
+  skippedTypes: Record<string, string>
+}
+
 type HomeMaintenanceTask = {
   id: string
   householdId: string
@@ -372,7 +401,7 @@ type TimelineResponse = {
   grouped: Record<string, number>
 }
 
-type AppPage = 'dashboard' | 'household' | 'home' | 'reminders' | 'inbox' | 'search' | 'timeline' | 'expenses' | 'health' | 'documents'
+type AppPage = 'dashboard' | 'household' | 'home' | 'reminders' | 'inbox' | 'search' | 'timeline' | 'expenses' | 'health' | 'health-review' | 'documents'
 type ExpenseSection = 'overview' | 'monthly-review' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
@@ -388,6 +417,8 @@ const fallbackDashboard: Dashboard = {
     financeReviewCount: 0,
     healthMarkersTracked: 0,
     healthOutOfRange: 0,
+    healthReviewCount: 0,
+    healthReviewCritical: 0,
     documentsStored: 0,
   },
   attention: [],
@@ -463,6 +494,7 @@ function App() {
   const [household, setHousehold] = useState<Household | null>(null)
   const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null)
   const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null)
+  const [healthReview, setHealthReview] = useState<HealthReview>({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0 }, supportedTypes: [], skippedTypes: {} })
   const [healthDocuments, setHealthDocuments] = useState<HealthDocument[]>([])
   const [homeTasks, setHomeTasks] = useState<HomeMaintenanceTask[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
@@ -595,7 +627,7 @@ function App() {
     const readPageFromHash = () => {
       const page = window.location.hash.replace('#', '') as AppPage
 
-      if (['dashboard', 'household', 'home', 'reminders', 'inbox', 'search', 'timeline', 'expenses', 'health', 'documents'].includes(page)) {
+      if (['dashboard', 'household', 'home', 'reminders', 'inbox', 'search', 'timeline', 'expenses', 'health', 'health-review', 'documents'].includes(page)) {
         setActivePage(page)
       }
     }
@@ -632,6 +664,7 @@ function App() {
           loadTimeline(user.householdId),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
+          loadHealthReview(user.householdId),
           loadHealthDocuments(user.householdId),
         ])
       })
@@ -678,6 +711,7 @@ function App() {
       await loadTimeline(user.householdId)
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
+      await loadHealthReview(user.householdId)
       await loadHealthDocuments(user.householdId)
       window.localStorage.setItem(householdStorageKey, user.householdId)
       setCurrentUser(user)
@@ -697,6 +731,7 @@ function App() {
     setHousehold(null)
     setExpenseOverview(null)
     setHealthOverview(null)
+    setHealthReview({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0 }, supportedTypes: [], skippedTypes: {} })
     setHealthDocuments([])
     setHomeTasks([])
     setReminders([])
@@ -745,6 +780,7 @@ function App() {
 
   const refreshHealthAndInbox = async (householdId: string) => {
     await loadHealthOverview(householdId)
+    await loadHealthReview(householdId)
     await loadInbox(householdId)
     await loadTimeline(householdId)
     await loadDashboard()
@@ -825,6 +861,10 @@ function App() {
     if (!selectedMarkerName && overview.markerNames[0]) {
       setSelectedMarkerName(overview.markerNames[0])
     }
+  }
+
+  const loadHealthReview = async (householdId: string) => {
+    setHealthReview(await apiJson<HealthReview>(`/api/households/${householdId}/health/review`))
   }
 
   const loadHealthDocuments = async (householdId: string) => {
@@ -2045,6 +2085,11 @@ function App() {
     module,
     results: searchResponse.results.filter((result) => result.sourceModule === module),
   })).filter((group) => group.results.length > 0)
+  const healthReviewGroups = {
+    critical: healthReview.items.filter((item) => item.severity === 'critical'),
+    warning: healthReview.items.filter((item) => item.severity === 'warning'),
+    info: healthReview.items.filter((item) => item.severity === 'info'),
+  }
   const inboxGroups = {
     critical: inbox.items.filter((item) => item.severity === 'critical'),
     warning: inbox.items.filter((item) => item.severity === 'warning'),
@@ -2243,6 +2288,17 @@ function App() {
     }
   }
 
+  const openHealthReviewItem = (item: HealthReviewItem) => {
+    const test = healthOverview?.latestBloodTests.find((candidate) => candidate.id === item.labTestId)
+
+    setActivePage('health')
+    window.location.hash = 'health'
+
+    if (test) {
+      startEditBloodTest(test)
+    }
+  }
+
   const openExpensesSection = (section: ExpenseSection) => {
     setActivePage('expenses')
     setExpenseSection(section)
@@ -2278,7 +2334,7 @@ function App() {
       title: 'Health',
       value: dashboard.summary.healthMarkersTracked,
       label: 'markers tracked',
-      detail: `${dashboard.summary.healthOutOfRange} out of range`,
+      detail: `${dashboard.summary.healthOutOfRange} out of range · ${dashboard.summary.healthReviewCount} review`,
     },
     {
       title: 'Documents',
@@ -2364,13 +2420,13 @@ function App() {
       },
     },
     {
-      title: 'Health signals',
-      detail: `${dashboard.summary.healthOutOfRange} out of range · ${needsReviewMarkers.length} to clean`,
-      tone: dashboard.summary.healthOutOfRange > 0 ? 'danger' : needsReviewMarkers.length > 0 ? 'warning' : 'good',
-      action: 'Open health',
+      title: 'Health review',
+      detail: `${healthReview.summary.critical} critical · ${healthReview.summary.warning} warning · ${healthReview.summary.info} info`,
+      tone: healthReview.summary.critical > 0 ? 'danger' : healthReview.summary.warning > 0 ? 'warning' : 'good',
+      action: 'Open review',
       onClick: () => {
-        setActivePage('health')
-        window.location.hash = 'health'
+        setActivePage('health-review')
+        window.location.hash = 'health-review'
       },
     },
     {
@@ -2392,6 +2448,7 @@ function App() {
     { page: 'timeline', label: 'Timeline' },
     { page: 'expenses', label: 'Expenses' },
     { page: 'health', label: 'Health' },
+    { page: 'health-review', label: 'Health Review' },
     { page: 'documents', label: 'Documents' },
   ]
 
@@ -2450,6 +2507,11 @@ function App() {
       eyebrow: 'Health',
       title: 'Blood tests and health markers.',
       copy: 'Store family lab results, watch out-of-range markers, and build history over time.',
+    },
+    'health-review': {
+      eyebrow: 'Health Review',
+      title: 'Clean up health data before trusting trends.',
+      copy: 'Review out-of-range, unknown, stale, duplicate-looking, and suspicious lab result data without medical advice.',
     },
     documents: {
       eyebrow: 'Documents',
@@ -3270,6 +3332,86 @@ function App() {
                 <p className="empty-state">No timeline events yet.</p>
               )}
             </div>
+          </section>
+        )}
+
+        {activePage === 'health-review' && (
+          <section className="health-review-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Review Center</p>
+                <h2>Health data quality queue.</h2>
+              </div>
+              <button type="button" onClick={() => household && loadHealthReview(household.id)}>
+                Refresh
+              </button>
+            </div>
+
+            <p className="health-warning">
+              This page flags saved data that may need cleanup. It does not diagnose, interpret symptoms, or replace lab/doctor guidance.
+            </p>
+
+            <div className="health-review-summary-grid">
+              <article className={healthReview.summary.critical > 0 ? 'danger' : 'good'}>
+                <span>Critical</span>
+                <strong>{healthReview.summary.critical}</strong>
+              </article>
+              <article className={healthReview.summary.warning > 0 ? 'warning' : 'good'}>
+                <span>Warning</span>
+                <strong>{healthReview.summary.warning}</strong>
+              </article>
+              <article>
+                <span>Info</span>
+                <strong>{healthReview.summary.info}</strong>
+              </article>
+              <article>
+                <span>Total</span>
+                <strong>{healthReview.summary.total}</strong>
+              </article>
+            </div>
+
+            <div className="health-review-groups">
+              {(Object.keys(healthReviewGroups) as Array<HealthReviewItem['severity']>).map((severity) => (
+                <section className={`health-review-group severity-${severity}`} key={severity}>
+                  <div className="panel-heading-row">
+                    <div>
+                      <p className="eyebrow">{severity}</p>
+                      <h3>{healthReviewGroups[severity].length} item{healthReviewGroups[severity].length === 1 ? '' : 's'}</h3>
+                    </div>
+                  </div>
+
+                  <div className="health-review-list">
+                    {healthReviewGroups[severity].length > 0 ? (
+                      healthReviewGroups[severity].map((item) => (
+                        <article className={`health-review-item severity-${item.severity}`} key={item.id}>
+                          <span></span>
+                          <div>
+                            <strong>{item.title}</strong>
+                            <small>{item.type} · {memberNameById(item.memberId)} · {item.detectedAt}</small>
+                            <p>{item.detail}</p>
+                            <em>{item.suggestedAction}</em>
+                          </div>
+                          <button type="button" onClick={() => openHealthReviewItem(item)}>
+                            Open record
+                          </button>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">No {severity} health review items.</p>
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
+
+            {Object.keys(healthReview.skippedTypes).length > 0 && (
+              <section className="health-review-notes">
+                <p className="eyebrow">Not built yet</p>
+                {Object.entries(healthReview.skippedTypes).map(([type, reason]) => (
+                  <p key={type}><strong>{type}</strong>: {reason}</p>
+                ))}
+              </section>
+            )}
           </section>
         )}
 

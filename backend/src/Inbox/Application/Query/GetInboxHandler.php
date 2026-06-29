@@ -8,9 +8,8 @@ use App\Documents\Domain\Repository\DocumentRepository;
 use App\Expenses\Application\Dto\IncomeEntryView;
 use App\Expenses\Application\Query\GetExpenseOverviewHandler;
 use App\Expenses\Application\Query\GetExpenseOverviewQuery;
-use App\Health\Domain\Model\BloodTest;
-use App\Health\Domain\Model\BloodTestMarker;
-use App\Health\Domain\Repository\HealthRepository;
+use App\Health\Application\Query\GetHealthReviewHandler;
+use App\Health\Application\Query\GetHealthReviewQuery;
 use App\Home\Domain\Model\HomeMaintenanceTask;
 use App\Home\Domain\Repository\HomeMaintenanceRepository;
 use App\Inbox\Application\Dto\InboxItemView;
@@ -24,7 +23,7 @@ final readonly class GetInboxHandler implements QueryHandler
 {
     public function __construct(
         private GetExpenseOverviewHandler $expenseOverview,
-        private HealthRepository $health,
+        private GetHealthReviewHandler $healthReview,
         private HomeMaintenanceRepository $homeTasks,
         private ReminderRepository $reminders,
         private DocumentRepository $documents,
@@ -41,8 +40,7 @@ final readonly class GetInboxHandler implements QueryHandler
         $now = new DateTimeImmutable();
         $month = $now->format('Y-m');
         $expenses = ($this->expenseOverview)(new GetExpenseOverviewQuery($query->householdId, $month));
-        $latestBloodTests = $this->health->latestBloodTests($query->householdId, null, 20);
-        $outOfRangeMarkers = $this->health->latestOutOfRangeMarkers($query->householdId, null, 20);
+        $healthReview = ($this->healthReview)(new GetHealthReviewQuery($query->householdId));
         $today = new DateTimeImmutable('today');
         $items = [];
 
@@ -94,43 +92,23 @@ final readonly class GetInboxHandler implements QueryHandler
             );
         }
 
-        foreach ($outOfRangeMarkers as $marker) {
+        foreach ($healthReview['items'] as $reviewItem) {
             $items[] = new InboxItemView(
-                sprintf('health-out-of-range-%s', $marker->id()),
+                sprintf('health-review-%s', $reviewItem->id),
                 'health',
-                'blood_marker',
-                $marker->id(),
-                'critical',
+                $reviewItem->type,
+                $reviewItem->markerId ?? $reviewItem->labTestId ?? $reviewItem->id,
+                $reviewItem->severity,
                 null,
-                sprintf('%s is %s', $marker->name(), $marker->status()),
-                sprintf('%s: %.2f %s from %s.', $marker->bloodTest()->testedAt()->format('Y-m-d'), $marker->value(), $marker->unit(), $marker->bloodTest()->memberId()),
-                'Open health',
-                '#health',
-                'health',
-                null,
-                $marker->bloodTest()->testedAt()->format('Y-m-d'),
-                null,
-                $marker->status(),
-            );
-        }
-
-        foreach ($this->healthReviewMarkers($latestBloodTests) as $marker) {
-            $items[] = new InboxItemView(
-                sprintf('health-review-%s', $marker->id()),
-                'health',
-                'blood_marker_review',
-                $marker->id(),
-                'warning',
-                null,
-                sprintf('Review marker data: %s', $marker->name()),
-                'Unknown status, missing unit, or suspicious reference range needs cleanup.',
+                $reviewItem->title,
+                $reviewItem->detail,
                 'Review health',
-                '#health',
-                'health',
+                '#health-review',
+                'health-review',
                 null,
-                $marker->bloodTest()->testedAt()->format('Y-m-d'),
+                $reviewItem->detectedAt,
                 null,
-                $marker->status(),
+                $reviewItem->type,
             );
         }
 
@@ -241,23 +219,6 @@ final readonly class GetInboxHandler implements QueryHandler
         );
     }
 
-    /**
-     * @param list<BloodTest> $bloodTests
-     * @return list<BloodTestMarker>
-     */
-    private function healthReviewMarkers(array $bloodTests): array
-    {
-        $markers = [];
-        foreach ($bloodTests as $bloodTest) {
-            foreach ($bloodTest->markers() as $marker) {
-                if ($marker->status() === 'unknown' || trim($marker->unit()) === '' || ($marker->referenceMin() !== null && $marker->referenceMax() !== null && $marker->referenceMin() > $marker->referenceMax())) {
-                    $markers[] = $marker;
-                }
-            }
-        }
-
-        return $markers;
-    }
 
     /**
      * @param list<InboxItemView> $items
