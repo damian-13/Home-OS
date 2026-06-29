@@ -46,6 +46,7 @@ register_shutdown_function(static function () use (&$createdHouseholdId, &$creat
             'income_entries',
             'income_sources',
             'expense_categories',
+            'documents',
             'health_documents',
             'blood_tests',
             'home_maintenance_tasks',
@@ -114,6 +115,91 @@ function apiRequest(string $method, string $path, ?array $payload = null): array
     $context = stream_context_create([
         'http' => [
             'method' => $method,
+            'header' => implode("\r\n", $headers),
+            'content' => $body,
+            'ignore_errors' => true,
+            'timeout' => 10,
+        ],
+    ]);
+
+    $raw = @file_get_contents($baseUrl.$path, false, $context);
+
+    if ($raw === false) {
+        fail(sprintf('Could not connect to %s. Is the backend container running?', $baseUrl));
+    }
+
+    $responseHeaders = $http_response_header ?? [];
+    $status = 0;
+
+    foreach ($responseHeaders as $header) {
+        if (preg_match('/^HTTP\/\S+\s+(\d+)/', $header, $matches)) {
+            $status = (int) $matches[1];
+        }
+
+        if (preg_match('/^Set-Cookie:\s*([^=;]+)=([^;]*)/i', $header, $matches)) {
+            $cookieJar[$matches[1]] = $matches[2];
+        }
+    }
+
+    $decoded = json_decode($raw, true);
+
+    return [
+        'status' => $status,
+        'body' => json_last_error() === JSON_ERROR_NONE ? $decoded : null,
+        'raw' => $raw,
+        'headers' => $responseHeaders,
+    ];
+}
+
+/**
+ * @param array<string, string> $fields
+ * @param array{name: string, path: string, mime: string}|null $file
+ * @return array{status: int, body: mixed, raw: string, headers: list<string>}
+ */
+function apiMultipart(string $path, array $fields, ?array $file = null): array
+{
+    global $baseUrl, $cookieJar;
+
+    $boundary = '----HomeOsSmoke'.bin2hex(random_bytes(8));
+    $body = '';
+
+    foreach ($fields as $name => $value) {
+        $body .= sprintf("--%s\r\n", $boundary);
+        $body .= sprintf("Content-Disposition: form-data; name=\"%s\"\r\n\r\n", $name);
+        $body .= $value."\r\n";
+    }
+
+    if ($file !== null) {
+        $contents = file_get_contents($file['path']);
+
+        if ($contents === false) {
+            fail(sprintf('Could not read multipart file %s.', $file['path']));
+        }
+
+        $body .= sprintf("--%s\r\n", $boundary);
+        $body .= sprintf("Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n", $file['name']);
+        $body .= sprintf("Content-Type: %s\r\n\r\n", $file['mime']);
+        $body .= $contents."\r\n";
+    }
+
+    $body .= sprintf("--%s--\r\n", $boundary);
+
+    $headers = [
+        'Accept: application/json',
+        sprintf('Content-Type: multipart/form-data; boundary=%s', $boundary),
+    ];
+
+    if ($cookieJar !== []) {
+        $headers[] = 'Cookie: '.implode('; ', array_map(
+            static fn (string $name, string $value): string => sprintf('%s=%s', $name, $value),
+            array_keys($cookieJar),
+            $cookieJar,
+        ));
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
             'header' => implode("\r\n", $headers),
             'content' => $body,
             'ignore_errors' => true,
@@ -424,6 +510,135 @@ assertTrue(($skippedRecurringReminder['status'] ?? null) === 'pending', 'Skippin
 assertTrue(($skippedRecurringReminder['dueAt'] ?? '') > $yesterday, 'Skipping recurring reminder should advance due date.');
 assertTrue(is_string($skippedRecurringReminder['skippedAt'] ?? null), 'Skipping recurring reminder should set skippedAt.');
 
+$memberId = (string) ($user['linkedMemberId'] ?? '');
+
+$expiredDocument = apiMultipart(sprintf('/api/households/%s/documents', rawurlencode($householdId)), [
+    'title' => 'Smoke expired insurance',
+    'type' => 'insurance',
+    'ownerMemberId' => $memberId,
+    'issuedAt' => '',
+    'expiresAt' => $yesterday,
+    'tags' => 'smoke, insurance',
+    'note' => 'Should appear as expired',
+]);
+
+assertTrue($expiredDocument['status'] === 201, 'Expired document create should return 201.');
+assertTrue(is_string($expiredDocument['body']['id'] ?? null), 'Expired document create should return id.');
+
+$expiringDocument = apiMultipart(sprintf('/api/households/%s/documents', rawurlencode($householdId)), [
+    'title' => 'Smoke expiring warranty',
+    'type' => 'warranty',
+    'ownerMemberId' => '',
+    'issuedAt' => '',
+    'expiresAt' => $tomorrow,
+    'tags' => 'smoke, warranty',
+    'note' => 'Should appear as expiring soon',
+]);
+
+assertTrue($expiringDocument['status'] === 201, 'Expiring document create should return 201.');
+assertTrue(is_string($expiringDocument['body']['id'] ?? null), 'Expiring document create should return id.');
+
+$editableDocument = apiMultipart(sprintf('/api/households/%s/documents', rawurlencode($householdId)), [
+    'title' => 'Smoke editable manual',
+    'type' => 'manual',
+    'ownerMemberId' => '',
+    'issuedAt' => '',
+    'expiresAt' => '',
+    'tags' => 'smoke',
+    'note' => 'Before edit',
+]);
+
+assertTrue($editableDocument['status'] === 201, 'Editable document create should return 201.');
+assertTrue(is_string($editableDocument['body']['id'] ?? null), 'Editable document create should return id.');
+
+$uploadedDocumentPath = sys_get_temp_dir().'/home-os-smoke-document.png';
+file_put_contents($uploadedDocumentPath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', true));
+
+$uploadedDocument = apiMultipart(sprintf('/api/households/%s/documents', rawurlencode($householdId)), [
+    'title' => 'Smoke uploaded invoice',
+    'type' => 'invoice',
+    'ownerMemberId' => $memberId,
+    'issuedAt' => (new DateTimeImmutable('today'))->format('Y-m-d'),
+    'expiresAt' => '',
+    'tags' => 'smoke, file',
+    'note' => 'Has file',
+], [
+    'name' => 'smoke-document.png',
+    'path' => $uploadedDocumentPath,
+    'mime' => 'image/png',
+]);
+
+assertTrue($uploadedDocument['status'] === 201, sprintf('Uploaded document create should return 201, got %d: %s', $uploadedDocument['status'], $uploadedDocument['raw']));
+assertTrue(is_string($uploadedDocument['body']['id'] ?? null), 'Uploaded document create should return id.');
+
+$documentsList = apiRequest('GET', sprintf('/api/households/%s/documents', rawurlencode($householdId)));
+
+assertTrue($documentsList['status'] === 200, 'Document list should return 200.');
+assertTrue(is_array($documentsList['body']['documents'] ?? null), 'Document list should return documents.');
+assertTrue(count($documentsList['body']['documents']) >= 4, 'Document list should include created documents.');
+
+$documentsById = [];
+foreach (($documentsList['body']['documents'] ?? []) as $document) {
+    if (is_array($document) && isset($document['id'])) {
+        $documentsById[(string) $document['id']] = $document;
+    }
+}
+
+assertTrue(($documentsById[(string) $uploadedDocument['body']['id']]['originalName'] ?? null) === 'smoke-document.png', 'Uploaded document should keep original file name.');
+assertTrue(is_string($documentsById[(string) $uploadedDocument['body']['id']]['downloadUrl'] ?? null), 'Uploaded document should expose download URL.');
+
+$documentDownload = apiRequest('GET', (string) $documentsById[(string) $uploadedDocument['body']['id']]['downloadUrl']);
+
+assertTrue($documentDownload['status'] === 200, 'Document download should return 200.');
+assertTrue(strlen($documentDownload['raw']) > 0, 'Document download should return stored file content.');
+
+$updateDocument = apiRequest('PATCH', sprintf(
+    '/api/households/%s/documents/%s',
+    rawurlencode($householdId),
+    rawurlencode((string) $editableDocument['body']['id']),
+), [
+    'title' => 'Smoke edited manual',
+    'type' => 'manual',
+    'ownerMemberId' => null,
+    'issuedAt' => null,
+    'expiresAt' => null,
+    'tags' => 'smoke, edited',
+    'note' => 'After edit',
+]);
+
+assertTrue($updateDocument['status'] === 200, 'Document metadata update should return 200.');
+
+$documentsAfterEdit = apiRequest('GET', sprintf('/api/households/%s/documents', rawurlencode($householdId)));
+$editedDocument = null;
+foreach (($documentsAfterEdit['body']['documents'] ?? []) as $document) {
+    if (is_array($document) && ($document['id'] ?? null) === $editableDocument['body']['id']) {
+        $editedDocument = $document;
+        break;
+    }
+}
+
+assertTrue(($editedDocument['title'] ?? null) === 'Smoke edited manual', 'Document update should change title.');
+assertTrue(($editedDocument['tags'] ?? null) === 'smoke, edited', 'Document update should change tags.');
+
+$deleteDocument = apiRequest('DELETE', sprintf(
+    '/api/households/%s/documents/%s',
+    rawurlencode($householdId),
+    rawurlencode((string) $editableDocument['body']['id']),
+));
+
+assertTrue($deleteDocument['status'] === 204, 'Document delete should return 204.');
+
+$documentsAfterDelete = apiRequest('GET', sprintf('/api/households/%s/documents', rawurlencode($householdId)));
+$deletedStillVisible = false;
+foreach (($documentsAfterDelete['body']['documents'] ?? []) as $document) {
+    if (is_array($document) && ($document['id'] ?? null) === $editableDocument['body']['id']) {
+        $deletedStillVisible = true;
+        break;
+    }
+}
+
+assertTrue(!$deletedStillVisible, 'Deleted document should not be listed.');
+
 $dashboardWithHome = apiRequest('GET', '/api/dashboard');
 $homeAttention = array_values(array_filter(
     $dashboardWithHome['body']['attention'] ?? [],
@@ -433,6 +648,10 @@ $reminderAttention = array_values(array_filter(
     $dashboardWithHome['body']['attention'] ?? [],
     static fn (array $item): bool => ($item['area'] ?? null) === 'reminders',
 ));
+$documentAttention = array_values(array_filter(
+    $dashboardWithHome['body']['attention'] ?? [],
+    static fn (array $item): bool => ($item['area'] ?? null) === 'documents',
+));
 
 assertTrue(($dashboardWithHome['body']['summary']['homeTasksDue'] ?? 0) >= 2, 'Dashboard should count due home tasks.');
 assertTrue(count($homeAttention) >= 2, 'Dashboard should include home overdue and upcoming attention items.');
@@ -440,8 +659,10 @@ assertTrue(in_array('home', array_column($homeAttention, 'targetPage'), true), '
 assertTrue(($dashboardWithHome['body']['summary']['remindersDue'] ?? 0) >= 3, 'Dashboard should count due reminders.');
 assertTrue(count($reminderAttention) >= 3, 'Dashboard should include overdue, today, and upcoming reminder attention items.');
 assertTrue(in_array('reminders', array_column($reminderAttention, 'targetPage'), true), 'Reminder attention should navigate to Reminders page.');
+assertTrue(($dashboardWithHome['body']['summary']['documentsStored'] ?? 0) >= 3, 'Dashboard should count stored documents.');
+assertTrue(count($documentAttention) >= 2, 'Dashboard should include expired and expiring document attention items.');
+assertTrue(in_array('documents', array_column($documentAttention, 'targetPage'), true), 'Document attention should navigate to Documents page.');
 
-$memberId = (string) ($user['linkedMemberId'] ?? '');
 $bloodTest = apiRequest('POST', sprintf('/api/households/%s/health/blood-tests', rawurlencode($householdId)), [
     'memberId' => $memberId,
     'testedAt' => (new DateTimeImmutable())->format('Y-m-d'),
@@ -476,6 +697,7 @@ assertTrue(in_array('expenses', $inboxSources, true), 'Inbox should include expe
 assertTrue(in_array('health', $inboxSources, true), 'Inbox should include health review items.');
 assertTrue(in_array('home', $inboxSources, true), 'Inbox should include home maintenance items.');
 assertTrue(in_array('reminders', $inboxSources, true), 'Inbox should include due reminder items.');
+assertTrue(in_array('documents', $inboxSources, true), 'Inbox should include expired and expiring document items.');
 
 $dashboardWithInbox = apiRequest('GET', '/api/dashboard');
 

@@ -1796,6 +1796,198 @@ h3 {
   grid-column: 2 / -1;
 }
 
+.documents-panel {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 42px rgba(39, 55, 88, 0.1);
+}
+
+.documents-panel > .section-heading > button,
+.document-form button,
+.document-item button,
+.document-item a {
+  min-height: 42px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #2142d8;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 14px;
+  text-decoration: none;
+}
+
+.document-item a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.documents-panel > .section-heading > button:hover,
+.document-form button:hover,
+.document-item button:hover,
+.document-item a:hover {
+  border-color: #2457ff;
+  background: #eef4ff;
+}
+
+.document-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.document-summary-grid article {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 15px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f7f9ff;
+}
+
+.document-summary-grid article.good {
+  border-color: #cfeedd;
+  background: #f4fff9;
+}
+
+.document-summary-grid article.danger {
+  border-color: #ffc0c7;
+  background: #fff1f3;
+}
+
+.document-summary-grid span {
+  color: #66748a;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.document-summary-grid strong {
+  color: #132033;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.document-create-panel,
+.document-group {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.document-create-panel {
+  background: linear-gradient(135deg, #ffffff, #f8fbff);
+}
+
+.document-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+}
+
+.document-note-field {
+  grid-column: span 2;
+}
+
+.document-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.document-group.danger {
+  border-color: #ffc0c7;
+  background: #fff8f9;
+}
+
+.document-group.warning {
+  border-color: #ffd6a7;
+  background: #fffaf2;
+}
+
+.document-list {
+  display: grid;
+  gap: 10px;
+}
+
+.document-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid #e3e9f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.document-type {
+  width: 12px;
+  min-height: 58px;
+  border-radius: 999px;
+  background: #2457ff;
+}
+
+.document-type.type-warranty,
+.document-type.type-insurance {
+  background: #f59e0b;
+}
+
+.document-type.type-medical {
+  background: #e11d48;
+}
+
+.document-type.type-manual {
+  background: #18a67a;
+}
+
+.document-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.document-main strong,
+.document-main small,
+.document-main em {
+  display: block;
+}
+
+.document-main strong {
+  color: #132033;
+  font-size: 16px;
+}
+
+.document-main small,
+.document-main p,
+.document-main em {
+  color: #66748a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.document-main p {
+  margin-top: 6px;
+}
+
+.document-main em {
+  margin-top: 6px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.document-edit-form {
+  grid-column: 2 / -1;
+}
+
 .inbox-panel {
   display: grid;
   gap: 18px;
@@ -3340,6 +3532,8 @@ h3 {
   .home-task-main,
   .reminder-form,
   .reminder-main,
+  .document-form,
+  .document-main,
   .daily-review-item,
   .inbox-item {
     display: grid;
@@ -3350,6 +3544,11 @@ h3 {
   .home-task-edit-form,
   .reminder-note-field,
   .reminder-edit-form {
+    grid-column: auto;
+  }
+
+  .document-note-field,
+  .document-edit-form {
     grid-column: auto;
   }
 
@@ -3440,6 +3639,7 @@ h3 {
   .health-summary-grid,
   .home-summary-grid,
   .reminder-summary-grid,
+  .document-summary-grid,
   .inbox-summary-grid,
   .marker-trend-grid,
   .nav-list {

@@ -4,6 +4,7 @@ namespace App\Dashboard\Application\Query;
 
 use App\Dashboard\Application\Dto\DashboardAttentionItemView;
 use App\Dashboard\Application\Dto\DashboardView;
+use App\Documents\Domain\Repository\DocumentRepository;
 use App\Expenses\Application\Query\GetExpenseOverviewHandler;
 use App\Expenses\Application\Query\GetExpenseOverviewQuery;
 use App\Health\Domain\Model\BloodTestMarker;
@@ -25,6 +26,7 @@ final readonly class GetDashboardHandler implements QueryHandler
         private HomeMaintenanceRepository $homeTasks,
         private GetInboxHandler $inbox,
         private ReminderRepository $reminders,
+        private DocumentRepository $documents,
     ) {
     }
 
@@ -46,6 +48,8 @@ final readonly class GetDashboardHandler implements QueryHandler
         $overdueReminders = $this->reminders->overdueReminders($query->householdId, $today, 5);
         $todayReminders = $this->reminders->dueTodayReminders($query->householdId, $today, 5);
         $upcomingReminders = $this->reminders->upcomingReminders($query->householdId, $today, 14, 5);
+        $expiredDocuments = $this->documents->expiredDocuments($query->householdId, $today, 5);
+        $expiringDocuments = $this->documents->expiringDocuments($query->householdId, $today, 30, 5);
         $inbox = ($this->inbox)(new GetInboxQuery($query->householdId));
         $attention = [];
 
@@ -109,6 +113,18 @@ final readonly class GetDashboardHandler implements QueryHandler
                 $reminder->note() ?? 'Complete or skip this reminder today.',
                 'Open reminders',
                 'reminders',
+            );
+        }
+
+        foreach (array_slice($expiredDocuments, 0, 3) as $document) {
+            $attention[] = new DashboardAttentionItemView(
+                sprintf('document-expired-%s', $document->id()),
+                'documents',
+                'critical',
+                sprintf('Document expired: %s', $document->title()),
+                sprintf('%s expired on %s.', $document->type(), $document->expiresAt()?->format('Y-m-d')),
+                'Open documents',
+                'documents',
             );
         }
 
@@ -188,6 +204,18 @@ final readonly class GetDashboardHandler implements QueryHandler
             );
         }
 
+        foreach (array_slice($expiringDocuments, 0, 3) as $document) {
+            $attention[] = new DashboardAttentionItemView(
+                sprintf('document-expiring-%s', $document->id()),
+                'documents',
+                'warning',
+                sprintf('Document expires soon: %s', $document->title()),
+                sprintf('%s expires on %s.', $document->type(), $document->expiresAt()?->format('Y-m-d')),
+                'Open documents',
+                'documents',
+            );
+        }
+
         $healthReviewMarkers = $this->healthReviewMarkers($latestBloodTests);
         if (count($healthReviewMarkers) > 0) {
             $attention[] = new DashboardAttentionItemView(
@@ -227,7 +255,7 @@ final readonly class GetDashboardHandler implements QueryHandler
                 'financeReviewCount' => (int) ($expenses->review['needsReviewCount'] ?? 0),
                 'healthMarkersTracked' => count($markerNames),
                 'healthOutOfRange' => count($outOfRangeMarkers),
-                'documentsStored' => count($this->health->latestDocuments($query->householdId, null, 100)),
+                'documentsStored' => $this->documents->countDocuments($query->householdId),
             ],
             $attention,
         );

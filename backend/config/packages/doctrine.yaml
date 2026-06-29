@@ -32,6 +32,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Expenses/Domain/Model'
                 prefix: 'App\Expenses\Domain\Model'
                 alias: Expenses
+            Documents:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Documents/Domain/Model'
+                prefix: 'App\Documents\Domain\Model'
+                alias: Documents
             Health:
                 type: attribute
                 is_bundle: false

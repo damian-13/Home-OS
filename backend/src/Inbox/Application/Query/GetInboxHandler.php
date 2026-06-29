@@ -3,6 +3,8 @@
 namespace App\Inbox\Application\Query;
 
 use App\Expenses\Application\Dto\ExpenseView;
+use App\Documents\Domain\Model\Document;
+use App\Documents\Domain\Repository\DocumentRepository;
 use App\Expenses\Application\Dto\IncomeEntryView;
 use App\Expenses\Application\Query\GetExpenseOverviewHandler;
 use App\Expenses\Application\Query\GetExpenseOverviewQuery;
@@ -25,6 +27,7 @@ final readonly class GetInboxHandler implements QueryHandler
         private HealthRepository $health,
         private HomeMaintenanceRepository $homeTasks,
         private ReminderRepository $reminders,
+        private DocumentRepository $documents,
     ) {
     }
 
@@ -147,6 +150,14 @@ final readonly class GetInboxHandler implements QueryHandler
             $items[] = $this->reminderItem($reminder, 'warning', 'Reminder due today', 'Open reminders');
         }
 
+        foreach ($this->documents->expiredDocuments($query->householdId, $today, 20) as $document) {
+            $items[] = $this->documentItem($document, 'critical', 'Document expired');
+        }
+
+        foreach ($this->documents->expiringDocuments($query->householdId, $today, 30, 20) as $document) {
+            $items[] = $this->documentItem($document, 'warning', 'Document expires soon');
+        }
+
         usort($items, static function (InboxItemView $left, InboxItemView $right): int {
             $severityRank = ['critical' => 0, 'warning' => 1, 'info' => 2];
             $severityCompare = ($severityRank[$left->severity] ?? 9) <=> ($severityRank[$right->severity] ?? 9);
@@ -206,6 +217,27 @@ final readonly class GetInboxHandler implements QueryHandler
             $reminder->createdAt()->format(DATE_ATOM),
             $reminder->dueAt()->format('Y-m-d'),
             $reminder->status(),
+        );
+    }
+
+    private function documentItem(Document $document, string $severity, string $titlePrefix): InboxItemView
+    {
+        return new InboxItemView(
+            sprintf('document-%s', $document->id()),
+            'documents',
+            'document_expiry',
+            $document->id(),
+            $severity,
+            null,
+            sprintf('%s: %s', $titlePrefix, $document->title()),
+            sprintf('%s expires on %s.', $document->type(), $document->expiresAt()?->format('Y-m-d')),
+            'Open documents',
+            '#documents',
+            'documents',
+            null,
+            $document->createdAt()->format(DATE_ATOM),
+            $document->expiresAt()?->format('Y-m-d'),
+            null,
         );
     }
 

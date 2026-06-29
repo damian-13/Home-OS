@@ -48,6 +48,7 @@ If the answer is no, do not implement it yet.
 - Home Maintenance MVP: one-time and recurring maintenance tasks with due dates, simple recurrence, completion, and Dashboard overdue/upcoming attention.
 - Inbox + Daily Review MVP: thin aggregation of Expenses, Health, and Home review items with source navigation and Dashboard summary.
 - Generic Reminders MVP: household reminders with due dates, simple recurrence, complete/skip, Dashboard attention, and Inbox/Daily Review integration.
+- Generic Documents MVP: household document metadata, optional file upload/download, soft delete, expiry dates, Dashboard attention, and Inbox/Daily Review integration.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
@@ -59,8 +60,6 @@ If the answer is no, do not implement it yet.
 
 ### Incomplete
 
-- Generic Documents module does not exist; documents are currently health-specific.
-- Dashboard cannot yet show document expiry signals.
 - No real notification pipeline.
 - No backup/export workflow.
 - No mobile-specific UX beyond responsive CSS.
@@ -87,9 +86,8 @@ If the answer is no, do not implement it yet.
 ### Missing UX
 
 - Dashboard is useful, but it should evolve from information display into a Decision Center focused on "What should I do today?"
-- Inbox exists for current Expenses, Health, and Home signals, but does not yet cover future documents, OCR failures, duplicates, AI suggestions, or persistent dismissals.
+- Inbox exists for current Expenses, Health, Home, Reminders, and Documents signals, but does not yet cover future OCR failures, duplicates, AI suggestions, or persistent dismissals.
 - Daily Review exists as a lightweight Inbox section, but Weekly Review remains future work.
-- Document archive with expiry reminders.
 - Health review queue.
 - Better onboarding/default data setup.
 - Mobile bottom navigation and mobile-first quick entry.
@@ -266,6 +264,8 @@ Status: completed for the smallest useful version. Home Maintenance remains inde
 - Acceptance: reminders become reusable infrastructure without overbuilding notifications yet.
 
 ### Milestone 5: Documents MVP
+
+Status: completed for the smallest useful version. Generic documents are independent from Health documents for now; shared attachment infrastructure can be introduced later if more domains need it.
 
 - Add generic documents domain separate from health documents.
 - Metadata: title, type, owner member, issue date, expiry date, tags, note, file.
@@ -475,7 +475,7 @@ Future milestones should introduce these interfaces incrementally:
 - Expenses: add/edit/delete expense, import review rule, undo batch, budget warning, overdue bill attention.
 - Health: upload document, extract markers, import blood test, out-of-range attention, stale marker attention.
 - Future Home: create task, mark done, recurrence creates next due task or computes next due date, dashboard shows overdue/upcoming.
-- Future Documents: upload metadata/file, expiry warning, household access protection.
+- Documents: upload metadata/file, edit/delete metadata, expiry warning, household access protection.
 - Frontend: production build, dashboard actions navigate correctly, mobile viewport layout stays usable.
 
 ## Assumptions

@@ -18,7 +18,7 @@ type Dashboard = {
   }
   attention: Array<{
     id: string
-    area: 'expenses' | 'health' | 'home' | 'reminders'
+    area: 'expenses' | 'health' | 'home' | 'reminders' | 'documents'
     severity: 'critical' | 'warning' | 'info'
     title: string
     detail: string
@@ -246,7 +246,7 @@ type HomeMaintenanceTask = {
 
 type InboxItem = {
   id: string
-  sourceModule: 'expenses' | 'health' | 'home' | 'reminders'
+  sourceModule: 'expenses' | 'health' | 'home' | 'reminders' | 'documents'
   sourceType: string
   sourceId: string
   severity: 'critical' | 'warning' | 'info'
@@ -316,6 +316,24 @@ type Reminder = {
   createdAt: string
   completedAt: string | null
   skippedAt: string | null
+}
+
+type HouseholdDocument = {
+  id: string
+  householdId: string
+  title: string
+  type: 'contract' | 'invoice' | 'medical' | 'warranty' | 'insurance' | 'tax' | 'manual' | 'other'
+  ownerMemberId: string | null
+  issuedAt: string | null
+  expiresAt: string | null
+  tags: string | null
+  note: string | null
+  originalName: string | null
+  mimeType: string | null
+  fileSize: number | null
+  downloadUrl: string | null
+  createdAt: string
+  updatedAt: string | null
 }
 
 type AppPage = 'dashboard' | 'household' | 'home' | 'reminders' | 'inbox' | 'expenses' | 'health' | 'documents'
@@ -412,6 +430,7 @@ function App() {
   const [healthDocuments, setHealthDocuments] = useState<HealthDocument[]>([])
   const [homeTasks, setHomeTasks] = useState<HomeMaintenanceTask[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
+  const [documents, setDocuments] = useState<HouseholdDocument[]>([])
   const [inbox, setInbox] = useState<Inbox>({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
@@ -451,6 +470,23 @@ function App() {
   const [editReminderDueAt, setEditReminderDueAt] = useState(today)
   const [editReminderRecurrenceType, setEditReminderRecurrenceType] = useState<Reminder['recurrenceType']>('none')
   const [editReminderPriority, setEditReminderPriority] = useState<Reminder['priority']>('normal')
+  const [openDocumentCreator, setOpenDocumentCreator] = useState(false)
+  const [documentTitle, setDocumentTitle] = useState('')
+  const [documentType, setDocumentType] = useState<HouseholdDocument['type']>('other')
+  const [documentOwnerMemberId, setDocumentOwnerMemberId] = useState('')
+  const [documentIssuedAt, setDocumentIssuedAt] = useState('')
+  const [documentExpiresAt, setDocumentExpiresAt] = useState('')
+  const [documentTags, setDocumentTags] = useState('')
+  const [documentNote, setDocumentNote] = useState('')
+  const [genericDocumentFile, setGenericDocumentFile] = useState<File | null>(null)
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null)
+  const [editDocumentTitle, setEditDocumentTitle] = useState('')
+  const [editDocumentType, setEditDocumentType] = useState<HouseholdDocument['type']>('other')
+  const [editDocumentOwnerMemberId, setEditDocumentOwnerMemberId] = useState('')
+  const [editDocumentIssuedAt, setEditDocumentIssuedAt] = useState('')
+  const [editDocumentExpiresAt, setEditDocumentExpiresAt] = useState('')
+  const [editDocumentTags, setEditDocumentTags] = useState('')
+  const [editDocumentNote, setEditDocumentNote] = useState('')
   const [expenseDescription, setExpenseDescription] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
   const [expenseCategoryId, setExpenseCategoryId] = useState('')
@@ -551,6 +587,7 @@ function App() {
           loadDashboard(),
           loadHomeTasks(user.householdId),
           loadReminders(user.householdId),
+          loadDocuments(user.householdId),
           loadInbox(user.householdId),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
@@ -595,6 +632,7 @@ function App() {
       await loadDashboard()
       await loadHomeTasks(user.householdId)
       await loadReminders(user.householdId)
+      await loadDocuments(user.householdId)
       await loadInbox(user.householdId)
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
@@ -620,6 +658,7 @@ function App() {
     setHealthDocuments([])
     setHomeTasks([])
     setReminders([])
+    setDocuments([])
     setInbox({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
     setMarkerHistory([])
     setDashboard(fallbackDashboard)
@@ -679,6 +718,17 @@ function App() {
 
   const refreshRemindersDashboardAndInbox = async (householdId: string) => {
     await loadReminders(householdId)
+    await loadInbox(householdId)
+    await loadDashboard()
+  }
+
+  const loadDocuments = async (householdId: string) => {
+    const response = await apiJson<{ documents: HouseholdDocument[] }>(`/api/households/${householdId}/documents`)
+    setDocuments(response.documents)
+  }
+
+  const refreshDocumentsDashboardAndInbox = async (householdId: string) => {
+    await loadDocuments(householdId)
     await loadInbox(householdId)
     await loadDashboard()
   }
@@ -1027,6 +1077,104 @@ function App() {
         body: JSON.stringify({}),
       })
       await refreshRemindersDashboardAndInbox(household.id)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const addDocument = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household) {
+      return
+    }
+
+    const body = new FormData()
+    body.append('title', documentTitle)
+    body.append('type', documentType)
+    body.append('ownerMemberId', documentOwnerMemberId)
+    body.append('issuedAt', documentIssuedAt)
+    body.append('expiresAt', documentExpiresAt)
+    body.append('tags', documentTags)
+    body.append('note', documentNote)
+
+    if (genericDocumentFile) {
+      body.append('file', genericDocumentFile)
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiFormData<{ id: string }>(`/api/households/${household.id}/documents`, body)
+      await refreshDocumentsDashboardAndInbox(household.id)
+      setDocumentTitle('')
+      setDocumentType('other')
+      setDocumentOwnerMemberId('')
+      setDocumentIssuedAt('')
+      setDocumentExpiresAt('')
+      setDocumentTags('')
+      setDocumentNote('')
+      setGenericDocumentFile(null)
+      setOpenDocumentCreator(false)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const startEditDocument = (document: HouseholdDocument) => {
+    setEditingDocumentId(document.id)
+    setEditDocumentTitle(document.title)
+    setEditDocumentType(document.type)
+    setEditDocumentOwnerMemberId(document.ownerMemberId ?? '')
+    setEditDocumentIssuedAt(document.issuedAt ?? '')
+    setEditDocumentExpiresAt(document.expiresAt ?? '')
+    setEditDocumentTags(document.tags ?? '')
+    setEditDocumentNote(document.note ?? '')
+  }
+
+  const updateDocument = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !editingDocumentId) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiJson<{ status: string }>(`/api/households/${household.id}/documents/${editingDocumentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: editDocumentTitle,
+          type: editDocumentType,
+          ownerMemberId: editDocumentOwnerMemberId || null,
+          issuedAt: editDocumentIssuedAt || null,
+          expiresAt: editDocumentExpiresAt || null,
+          tags: editDocumentTags || null,
+          note: editDocumentNote || null,
+        }),
+      })
+      await refreshDocumentsDashboardAndInbox(household.id)
+      setEditingDocumentId(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const deleteDocument = async (documentId: string) => {
+    if (!household) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      await apiNoContent(`/api/households/${household.id}/documents/${documentId}`, { method: 'DELETE' })
+      await refreshDocumentsDashboardAndInbox(household.id)
+      setEditingDocumentId((current) => (current === documentId ? null : current))
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -1798,6 +1946,30 @@ function App() {
     { label: 'Later', reminders: laterReminders, tone: 'calm' },
     { label: 'Done or skipped', reminders: finishedReminders, tone: 'done' },
   ]
+  const expiredDocuments = documents.filter((document) => document.expiresAt !== null && document.expiresAt < today)
+  const expiringDocuments = documents.filter((document) => {
+    if (!document.expiresAt) return false
+    const expiresTime = new Date(`${document.expiresAt}T00:00:00`).getTime()
+    const todayTime = new Date(`${today}T00:00:00`).getTime()
+    const daysUntilExpiry = (expiresTime - todayTime) / (1000 * 60 * 60 * 24)
+
+    return daysUntilExpiry >= 0 && daysUntilExpiry <= 30
+  })
+  const documentTypeLabels: Record<HouseholdDocument['type'], string> = {
+    contract: 'Contract',
+    invoice: 'Invoice',
+    medical: 'Medical',
+    warranty: 'Warranty',
+    insurance: 'Insurance',
+    tax: 'Tax',
+    manual: 'Manual',
+    other: 'Other',
+  }
+  const documentGroups = [
+    { label: 'Expired', documents: expiredDocuments, tone: 'danger' },
+    { label: 'Expiring soon', documents: expiringDocuments, tone: 'warning' },
+    { label: 'All documents', documents, tone: 'calm' },
+  ]
   const inboxGroups = {
     critical: inbox.items.filter((item) => item.severity === 'critical'),
     warning: inbox.items.filter((item) => item.severity === 'warning'),
@@ -1808,6 +1980,7 @@ function App() {
     health: inbox.items.filter((item) => item.sourceModule === 'health').length,
     home: inbox.items.filter((item) => item.sourceModule === 'home').length,
     reminders: inbox.items.filter((item) => item.sourceModule === 'reminders').length,
+    documents: inbox.items.filter((item) => item.sourceModule === 'documents').length,
   }
   const dailyReviewItems = [
     ...dashboard.attention.map((item) => ({
@@ -2009,7 +2182,7 @@ function App() {
       title: 'Inbox',
       value: dashboard.summary.inboxItemsDue,
       label: dashboard.summary.inboxHighestSeverity ?? 'calm',
-      detail: `${inboxSourceTotals.expenses} finance · ${inboxSourceTotals.health} health · ${inboxSourceTotals.home} home · ${inboxSourceTotals.reminders} reminders`,
+      detail: `${inboxSourceTotals.expenses} finance · ${inboxSourceTotals.health} health · ${inboxSourceTotals.home} home · ${inboxSourceTotals.reminders} reminders · ${inboxSourceTotals.documents} docs`,
     },
     {
       title: 'Expenses',
@@ -2027,11 +2200,21 @@ function App() {
       title: 'Documents',
       value: dashboard.summary.documentsStored,
       label: 'stored',
-      detail: 'Contracts, manuals, invoices, lab PDFs',
+      detail: `${expiredDocuments.length} expired · ${expiringDocuments.length} expiring soon`,
     },
   ]
 
   const dailyActionCards = [
+    {
+      title: 'Documents expiring',
+      detail: `${expiredDocuments.length} expired · ${expiringDocuments.length} expiring soon`,
+      tone: expiredDocuments.length > 0 ? 'danger' : expiringDocuments.length > 0 ? 'warning' : 'good',
+      action: 'Open documents',
+      onClick: () => {
+        setActivePage('documents')
+        window.location.hash = 'documents'
+      },
+    },
     {
       title: 'Reminders due',
       detail: `${overdueReminders.length} overdue · ${todayReminders.length} today · ${upcomingReminders.length} upcoming`,
@@ -4512,18 +4695,185 @@ function App() {
         )}
 
         {activePage === 'documents' && (
-          <section className="placeholder-grid">
-            {[
-              ['Contracts', 'Internet, phone, mortgage, insurance, and service agreements.'],
-              ['Invoices', 'Recurring bills, purchase proofs, and household costs.'],
-              ['Archive', 'Manuals, warranties, certificates, and scanned documents.'],
-            ].map(([title, copy]) => (
-              <article className="placeholder-card" key={title}>
-                <span></span>
-                <h2>{title}</h2>
-                <p>{copy}</p>
+          <section className="documents-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Archive</p>
+                <h2>Documents, expiry dates, and files.</h2>
+              </div>
+              <button type="button" onClick={() => setOpenDocumentCreator(!openDocumentCreator)}>
+                {openDocumentCreator ? 'Close form' : 'Add document'}
+              </button>
+            </div>
+
+            <div className="document-summary-grid">
+              <article className={expiredDocuments.length > 0 ? 'danger' : 'good'}>
+                <span>Expired</span>
+                <strong>{expiredDocuments.length}</strong>
               </article>
-            ))}
+              <article>
+                <span>Expiring soon</span>
+                <strong>{expiringDocuments.length}</strong>
+              </article>
+              <article>
+                <span>Documents</span>
+                <strong>{documents.length}</strong>
+              </article>
+              <article>
+                <span>Files</span>
+                <strong>{documents.filter((document) => document.downloadUrl).length}</strong>
+              </article>
+            </div>
+
+            {openDocumentCreator && (
+              <section className="document-create-panel">
+                <form className="setup-form document-form" onSubmit={addDocument}>
+                  <label>
+                    Title
+                    <input id="document-title" value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} placeholder="Insurance policy, mower warranty..." required />
+                  </label>
+                  <label>
+                    Type
+                    <select id="document-type" value={documentType} onChange={(event) => setDocumentType(event.target.value as HouseholdDocument['type'])}>
+                      {(Object.keys(documentTypeLabels) as Array<HouseholdDocument['type']>).map((type) => (
+                        <option value={type} key={type}>{documentTypeLabels[type]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Owner
+                    <select id="document-owner" value={documentOwnerMemberId} onChange={(event) => setDocumentOwnerMemberId(event.target.value)}>
+                      <option value="">Household</option>
+                      {(household?.members ?? []).map((member) => (
+                        <option value={member.id} key={member.id}>{member.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Issued
+                    <input id="document-issued" type="date" value={documentIssuedAt} onChange={(event) => setDocumentIssuedAt(event.target.value)} />
+                  </label>
+                  <label>
+                    Expires
+                    <input id="document-expires" type="date" value={documentExpiresAt} onChange={(event) => setDocumentExpiresAt(event.target.value)} />
+                  </label>
+                  <label>
+                    Tags
+                    <input id="document-tags" value={documentTags} onChange={(event) => setDocumentTags(event.target.value)} placeholder="home, car, mortgage" />
+                  </label>
+                  <label className="document-note-field">
+                    Note
+                    <input id="document-note" value={documentNote} onChange={(event) => setDocumentNote(event.target.value)} placeholder="Where original is, renewal info..." />
+                  </label>
+                  <label>
+                    File
+                    <input
+                      id="document-file"
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      onChange={(event) => setGenericDocumentFile(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <button type="submit" disabled={setupState === 'saving'}>
+                    Save document
+                  </button>
+                </form>
+              </section>
+            )}
+
+            <div className="document-groups">
+              {documentGroups.map((group) => (
+                <section className={`document-group ${group.tone}`} key={group.label}>
+                  <div className="panel-heading-row">
+                    <div>
+                      <p className="eyebrow">{group.label}</p>
+                      <h3>{group.documents.length} document{group.documents.length === 1 ? '' : 's'}</h3>
+                    </div>
+                  </div>
+
+                  <div className="document-list">
+                    {group.documents.length > 0 ? (
+                      group.documents.map((document) => (
+                        <article className="document-item" key={`${group.label}-${document.id}`}>
+                          <span className={`document-type type-${document.type}`}></span>
+                          <div className="document-main">
+                            <div>
+                              <strong>{document.title}</strong>
+                              <small>
+                                {documentTypeLabels[document.type]} · {memberNameById(document.ownerMemberId)}
+                                {document.expiresAt ? ` · expires ${document.expiresAt}` : ' · no expiry'}
+                              </small>
+                              {document.tags && <p>{document.tags}</p>}
+                              {document.note && <p>{document.note}</p>}
+                              {document.originalName && <em>{document.originalName} · {document.fileSize ? formatFileSize(document.fileSize) : 'file'}</em>}
+                            </div>
+                            <div className="row-actions">
+                              {document.downloadUrl && <a href={document.downloadUrl}>Download</a>}
+                              <button type="button" onClick={() => startEditDocument(document)}>
+                                Edit
+                              </button>
+                              <button type="button" onClick={() => deleteDocument(document.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+
+                          {editingDocumentId === document.id && (
+                            <form className="inline-edit-form document-edit-form" onSubmit={updateDocument}>
+                              <label>
+                                Title
+                                <input id={`edit-document-title-${document.id}`} value={editDocumentTitle} onChange={(event) => setEditDocumentTitle(event.target.value)} required />
+                              </label>
+                              <label>
+                                Type
+                                <select id={`edit-document-type-${document.id}`} value={editDocumentType} onChange={(event) => setEditDocumentType(event.target.value as HouseholdDocument['type'])}>
+                                  {(Object.keys(documentTypeLabels) as Array<HouseholdDocument['type']>).map((type) => (
+                                    <option value={type} key={type}>{documentTypeLabels[type]}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                Owner
+                                <select id={`edit-document-owner-${document.id}`} value={editDocumentOwnerMemberId} onChange={(event) => setEditDocumentOwnerMemberId(event.target.value)}>
+                                  <option value="">Household</option>
+                                  {(household?.members ?? []).map((member) => (
+                                    <option value={member.id} key={member.id}>{member.displayName}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                Issued
+                                <input id={`edit-document-issued-${document.id}`} type="date" value={editDocumentIssuedAt} onChange={(event) => setEditDocumentIssuedAt(event.target.value)} />
+                              </label>
+                              <label>
+                                Expires
+                                <input id={`edit-document-expires-${document.id}`} type="date" value={editDocumentExpiresAt} onChange={(event) => setEditDocumentExpiresAt(event.target.value)} />
+                              </label>
+                              <label>
+                                Tags
+                                <input id={`edit-document-tags-${document.id}`} value={editDocumentTags} onChange={(event) => setEditDocumentTags(event.target.value)} />
+                              </label>
+                              <label className="document-note-field">
+                                Note
+                                <input id={`edit-document-note-${document.id}`} value={editDocumentNote} onChange={(event) => setEditDocumentNote(event.target.value)} />
+                              </label>
+                              <div className="inline-edit-actions">
+                                <button type="submit" disabled={setupState === 'saving'}>Save</button>
+                                <button type="button" onClick={() => setEditingDocumentId(null)}>Cancel</button>
+                              </div>
+                            </form>
+                          )}
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">No {group.label.toLocaleLowerCase('en-US')} documents.</p>
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
+
+            {setupState === 'error' && <p className="form-error">Could not save document data.</p>}
           </section>
         )}
       </section>
