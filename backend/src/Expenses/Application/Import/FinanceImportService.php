@@ -5,6 +5,7 @@ namespace App\Expenses\Application\Import;
 use App\Expenses\Application\DefaultExpenseCategories;
 use App\Expenses\Domain\Model\Expense;
 use App\Expenses\Domain\Model\ExpenseCategory;
+use App\Expenses\Domain\Model\FinanceReviewRule;
 use App\Expenses\Domain\Model\IncomeEntry;
 use App\Expenses\Domain\Repository\ExpenseRepository;
 use App\Shared\Domain\Uuid;
@@ -24,22 +25,40 @@ final readonly class FinanceImportService
      */
     public function preview(string $householdId, UploadedFile $file, string $importSource): array
     {
-        $rows = $this->parseFile($file);
+        $rows = $this->normalizedRows($file, $importSource);
+        $rules = $this->expenses->reviewRulesForHousehold($householdId);
         $previewRows = [];
         $duplicates = 0;
         $newRows = 0;
+        $expenseRows = 0;
+        $incomeRows = 0;
+        $rowsNeedingReview = 0;
+        $autoReviewedRows = 0;
+        $matchedRuleRows = 0;
 
-        foreach ($rows as $index => $row) {
-            $normalized = $this->normalizeRow($row, $importSource, $index + 1);
+        foreach ($rows as $normalized) {
             $duplicate = $this->expenses->findImportedTransaction($householdId, $normalized['importSource'], $normalized['fingerprint']);
+            $matchedRule = $duplicate ? null : $this->matchRule($rules, $normalized);
 
             if ($duplicate) {
                 ++$duplicates;
             } else {
                 ++$newRows;
+                if ($matchedRule) {
+                    ++$matchedRuleRows;
+                    ++$autoReviewedRows;
+                } else {
+                    ++$rowsNeedingReview;
+                }
             }
 
-            $previewRows[] = $this->previewRow($normalized, $duplicate);
+            if ($normalized['direction'] === 'expense') {
+                ++$expenseRows;
+            } else {
+                ++$incomeRows;
+            }
+
+            $previewRows[] = $this->previewRow($normalized, $duplicate, $matchedRule);
         }
 
         return [
@@ -48,6 +67,11 @@ final readonly class FinanceImportService
                 'newRows' => $newRows,
                 'duplicateCandidates' => $duplicates,
                 'autoSkippedDuplicates' => $duplicates,
+                'rowsNeedingReview' => $rowsNeedingReview,
+                'autoReviewedRows' => $autoReviewedRows,
+                'matchedRuleRows' => $matchedRuleRows,
+                'incomeRows' => $incomeRows,
+                'expenseRows' => $expenseRows,
             ],
             'rows' => $previewRows,
         ];
@@ -58,25 +82,36 @@ final readonly class FinanceImportService
      */
     public function accept(string $householdId, UploadedFile $file, string $importSource): array
     {
-        $rows = $this->parseFile($file);
+        $rows = $this->normalizedRows($file, $importSource);
+        $rules = $this->expenses->reviewRulesForHousehold($householdId);
         $category = $this->ensureFallbackCategory($householdId);
         $created = [];
         $skipped = [];
+        $createdExpenses = 0;
+        $createdIncomeEntries = 0;
+        $rowsStillNeedingReview = 0;
+        $autoReviewedRows = 0;
+        $matchedRuleRows = 0;
 
-        foreach ($rows as $index => $row) {
-            $normalized = $this->normalizeRow($row, $importSource, $index + 1);
+        foreach ($rows as $normalized) {
             $duplicate = $this->expenses->findImportedTransaction($householdId, $normalized['importSource'], $normalized['fingerprint']);
 
             if ($duplicate) {
-                $skipped[] = $this->previewRow($normalized, $duplicate);
+                $skipped[] = $this->previewRow($normalized, $duplicate, null);
                 continue;
             }
 
+            $matchedRule = $this->matchRule($rules, $normalized);
             if ($normalized['direction'] === 'expense') {
+                $categoryForExpense = $category;
+                if ($matchedRule instanceof FinanceReviewRule && $matchedRule->categoryId()) {
+                    $categoryForExpense = $this->expenses->getCategory($householdId, $matchedRule->categoryId());
+                }
+
                 $expense = new Expense(
                     (string) Uuid::new(),
                     $householdId,
-                    $category,
+                    $categoryForExpense,
                     $normalized['description'],
                     $normalized['amountCents'],
                     $normalized['currency'],
@@ -85,9 +120,19 @@ final readonly class FinanceImportService
                     $normalized['importSource'],
                     $normalized['fingerprint'],
                 );
-                $expense->changeReview('needs_review', 'Imported bank transaction needs category check');
+                if ($matchedRule instanceof FinanceReviewRule) {
+                    $expense->changeReview('reviewed');
+                    $matchedRule->markApplied();
+                    $this->expenses->saveReviewRule($matchedRule);
+                    ++$matchedRuleRows;
+                    ++$autoReviewedRows;
+                } else {
+                    $expense->changeReview('needs_review', 'Imported bank transaction needs category check');
+                    ++$rowsStillNeedingReview;
+                }
                 $this->expenses->saveExpense($expense);
-                $created[] = ['type' => 'expense', 'id' => $expense->id()];
+                ++$createdExpenses;
+                $created[] = ['type' => 'expense', 'id' => $expense->id(), 'reviewStatus' => $expense->reviewStatus(), 'matchedRule' => $this->ruleView($matchedRule)];
                 continue;
             }
 
@@ -103,16 +148,31 @@ final readonly class FinanceImportService
                 $normalized['importSource'],
                 $normalized['fingerprint'],
             );
-            $entry->changeClassification('other', 'needs_review', 'Imported bank transaction needs income type check');
+            if ($matchedRule instanceof FinanceReviewRule && $matchedRule->incomeKind()) {
+                $entry->changeClassification($matchedRule->incomeKind(), 'reviewed');
+                $matchedRule->markApplied();
+                $this->expenses->saveReviewRule($matchedRule);
+                ++$matchedRuleRows;
+                ++$autoReviewedRows;
+            } else {
+                $entry->changeClassification('other', 'needs_review', 'Imported bank transaction needs income type check');
+                ++$rowsStillNeedingReview;
+            }
             $this->expenses->saveIncomeEntry($entry);
-            $created[] = ['type' => 'income', 'id' => $entry->id()];
+            ++$createdIncomeEntries;
+            $created[] = ['type' => 'income', 'id' => $entry->id(), 'reviewStatus' => $entry->reviewStatus(), 'matchedRule' => $this->ruleView($matchedRule)];
         }
 
         return [
             'summary' => [
                 'totalRows' => count($rows),
                 'createdRows' => count($created),
+                'createdExpenses' => $createdExpenses,
+                'createdIncomeEntries' => $createdIncomeEntries,
                 'skippedDuplicates' => count($skipped),
+                'rowsStillNeedingReview' => $rowsStillNeedingReview,
+                'autoReviewedRows' => $autoReviewedRows,
+                'matchedRuleRows' => $matchedRuleRows,
             ],
             'created' => $created,
             'skipped' => $skipped,
@@ -166,6 +226,24 @@ final readonly class FinanceImportService
         return $rows;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function normalizedRows(UploadedFile $file, string $importSource): array
+    {
+        $rows = $this->parseFile($file);
+
+        if ($rows === []) {
+            throw new InvalidArgumentException('Import file does not contain any transaction rows.');
+        }
+
+        return array_map(
+            fn (array $row, int $index): array => $this->normalizeRow($row, $importSource, $index + 1),
+            $rows,
+            array_keys($rows),
+        );
+    }
+
     private function detectSeparator(string $path): string
     {
         $sample = (string) file_get_contents($path, false, null, 0, 4096);
@@ -198,7 +276,12 @@ final readonly class FinanceImportService
         $account = $this->firstValue($row, ['account', 'bank_account', 'rachunek', 'konto', 'numer_rachunku']);
         $transactionDateValue = $this->firstValue($row, ['transaction_date', 'date', 'spent_on', 'received_on', 'data_transakcji', 'data_operacji', 'data']);
         $bookingDateValue = $this->firstValue($row, ['booking_date', 'booked_at', 'accounting_date', 'data_ksiegowania', 'data_waluty']);
-        $amount = $this->parseAmount($this->firstValue($row, ['amount', 'kwota', 'transaction_amount', 'wartosc']));
+        $amountValue = $this->firstValue($row, ['amount', 'kwota', 'transaction_amount', 'wartosc']);
+        if ($amountValue === '') {
+            throw new InvalidArgumentException(sprintf('Transaction amount is required in import row %d.', $rowNumber));
+        }
+
+        $amount = $this->parseAmount($amountValue);
         $currency = strtoupper($this->firstValue($row, ['currency', 'waluta']) ?: 'PLN');
         $merchant = $this->firstValue($row, ['merchant', 'counterparty', 'contractor', 'odbiorca', 'nadawca', 'kontrahent']);
         $title = $this->firstValue($row, ['title', 'description', 'tytul', 'opis', 'details', 'szczegoly']);
@@ -314,7 +397,7 @@ final readonly class FinanceImportService
      * @param array{type: 'expense'|'income', id: string}|null $duplicate
      * @return array<string, mixed>
      */
-    private function previewRow(array $normalized, ?array $duplicate): array
+    private function previewRow(array $normalized, ?array $duplicate, ?FinanceReviewRule $matchedRule): array
     {
         return [
             'rowNumber' => $normalized['rowNumber'],
@@ -322,8 +405,9 @@ final readonly class FinanceImportService
             'status' => $duplicate ? 'duplicate_candidate' : 'new',
             'duplicate' => $duplicate !== null,
             'confidence' => $duplicate ? 'high' : null,
-            'recommendedAction' => $duplicate ? 'skip' : 'review',
+            'recommendedAction' => $duplicate ? 'skip' : ($matchedRule ? 'auto_review' : 'review'),
             'matchedRecord' => $duplicate,
+            'matchedRule' => $this->ruleView($matchedRule),
             'description' => $normalized['description'],
             'amount' => $normalized['amount'],
             'currency' => $normalized['currency'],
@@ -331,6 +415,43 @@ final readonly class FinanceImportService
             'bookingDate' => $normalized['bookingDate']?->format('Y-m-d'),
             'importSource' => $normalized['importSource'],
             'fingerprintStrength' => $normalized['fingerprintStrength'],
+        ];
+    }
+
+    /**
+     * @param list<FinanceReviewRule> $rules
+     * @param array<string, mixed> $normalized
+     */
+    private function matchRule(array $rules, array $normalized): ?FinanceReviewRule
+    {
+        foreach ($rules as $rule) {
+            if (!$rule->active() || $rule->targetType() !== $normalized['direction']) {
+                continue;
+            }
+
+            if (mb_stripos((string) $normalized['description'], $rule->matchText()) !== false) {
+                return $rule;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{id: string, targetType: string, matchText: string, categoryId: ?string, incomeKind: ?string}|null
+     */
+    private function ruleView(?FinanceReviewRule $rule): ?array
+    {
+        if (!$rule instanceof FinanceReviewRule) {
+            return null;
+        }
+
+        return [
+            'id' => $rule->id(),
+            'targetType' => $rule->targetType(),
+            'matchText' => $rule->matchText(),
+            'categoryId' => $rule->categoryId(),
+            'incomeKind' => $rule->incomeKind(),
         ];
     }
 

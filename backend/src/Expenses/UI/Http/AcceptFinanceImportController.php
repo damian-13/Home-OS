@@ -4,6 +4,7 @@ namespace App\Expenses\UI\Http;
 
 use App\Expenses\Application\Import\FinanceImportService;
 use App\Identity\Application\Security\HouseholdAccess;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -26,10 +27,14 @@ final readonly class AcceptFinanceImportController
             return new JsonResponse(['error' => 'CSV file is required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        return new JsonResponse($this->financeImport->accept(
-            $householdId,
-            $file,
-            (string) $request->request->get('source', 'bank-csv'),
-        ), JsonResponse::HTTP_CREATED);
+        try {
+            return new JsonResponse($this->financeImport->accept(
+                $householdId,
+                $file,
+                (string) $request->request->get('source', 'bank-csv'),
+            ), JsonResponse::HTTP_CREATED);
+        } catch (InvalidArgumentException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+        }
     }
 }

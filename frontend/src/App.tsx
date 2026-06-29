@@ -184,6 +184,11 @@ type FinanceImportPreview = {
     newRows: number
     duplicateCandidates: number
     autoSkippedDuplicates: number
+    rowsNeedingReview: number
+    autoReviewedRows: number
+    matchedRuleRows: number
+    incomeRows: number
+    expenseRows: number
   }
   rows: Array<{
     rowNumber: number
@@ -191,8 +196,15 @@ type FinanceImportPreview = {
     status: 'new' | 'duplicate_candidate'
     duplicate: boolean
     confidence: 'high' | null
-    recommendedAction: 'review' | 'skip'
+    recommendedAction: 'review' | 'skip' | 'auto_review'
     matchedRecord: { type: 'expense' | 'income'; id: string } | null
+    matchedRule: {
+      id: string
+      targetType: 'expense' | 'income'
+      matchText: string
+      categoryId: string | null
+      incomeKind: IncomeEntry['incomeKind'] | null
+    } | null
     description: string
     amount: number
     currency: string
@@ -207,9 +219,19 @@ type FinanceImportAccept = {
   summary: {
     totalRows: number
     createdRows: number
+    createdExpenses: number
+    createdIncomeEntries: number
     skippedDuplicates: number
+    rowsStillNeedingReview: number
+    autoReviewedRows: number
+    matchedRuleRows: number
   }
-  created: Array<{ type: 'expense' | 'income'; id: string }>
+  created: Array<{
+    type: 'expense' | 'income'
+    id: string
+    reviewStatus: 'needs_review' | 'reviewed'
+    matchedRule: FinanceImportPreview['rows'][number]['matchedRule']
+  }>
   skipped: FinanceImportPreview['rows']
 }
 
@@ -486,7 +508,9 @@ async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`)
+    const payload = await response.json().catch(() => null)
+    const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `API request failed: ${response.status}`
+    throw new Error(message)
   }
 
   return response.json() as Promise<T>
@@ -503,7 +527,9 @@ async function apiNoContent(url: string, options?: RequestInit): Promise<void> {
   })
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`)
+    const payload = await response.json().catch(() => null)
+    const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `API request failed: ${response.status}`
+    throw new Error(message)
   }
 }
 
@@ -612,6 +638,7 @@ function App() {
   const [financeImportSource, setFinanceImportSource] = useState('bank-csv')
   const [financeImportPreview, setFinanceImportPreview] = useState<FinanceImportPreview | null>(null)
   const [financeImportResult, setFinanceImportResult] = useState<FinanceImportAccept | null>(null)
+  const [financeImportError, setFinanceImportError] = useState('')
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
   const [editExpenseDescription, setEditExpenseDescription] = useState('')
   const [editExpenseAmount, setEditExpenseAmount] = useState('')
@@ -1373,8 +1400,10 @@ function App() {
       const preview = await apiFormData<FinanceImportPreview>(`/api/households/${household.id}/expenses/import/preview`, body)
       setFinanceImportPreview(preview)
       setFinanceImportResult(null)
+      setFinanceImportError('')
       setSetupState('idle')
-    } catch {
+    } catch (error) {
+      setFinanceImportError(error instanceof Error ? error.message : 'Could not preview this import file.')
       setSetupState('error')
     }
   }
@@ -1392,9 +1421,12 @@ function App() {
       body.append('file', financeImportFile)
       const result = await apiFormData<FinanceImportAccept>(`/api/households/${household.id}/expenses/import/accept`, body)
       setFinanceImportResult(result)
+      setFinanceImportPreview(null)
+      setFinanceImportError('')
       await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
-    } catch {
+    } catch (error) {
+      setFinanceImportError(error instanceof Error ? error.message : 'Could not import this file.')
       setSetupState('error')
     }
   }
@@ -3931,7 +3963,8 @@ function App() {
                 <div className="panel-heading-row">
                   <div>
                     <p className="eyebrow">Import Safety</p>
-                    <h4>Preview bank CSV before creating rows</h4>
+                    <h4>Import bank CSV safely</h4>
+                    <p className="panel-copy">Preview first, skip confident duplicates, and let saved rules clean known merchants automatically.</p>
                   </div>
                   {financeImportPreview && (
                     <span className="duplicate-pill">
@@ -3957,6 +3990,7 @@ function App() {
                         setFinanceImportFile(event.target.files?.[0] ?? null)
                         setFinanceImportPreview(null)
                         setFinanceImportResult(null)
+                        setFinanceImportError('')
                       }}
                     />
                   </label>
@@ -3965,9 +3999,13 @@ function App() {
                   </button>
                 </form>
 
+                {financeImportError && (
+                  <p className="form-error">{financeImportError}</p>
+                )}
+
                 {financeImportPreview && (
                   <div className="finance-import-preview">
-                    <div className="review-stats">
+                    <div className="finance-import-summary-grid">
                       <article>
                         <span>Total rows</span>
                         <strong>{financeImportPreview.summary.totalRows}</strong>
@@ -3980,15 +4018,42 @@ function App() {
                         <span>Will skip</span>
                         <strong>{financeImportPreview.summary.duplicateCandidates}</strong>
                       </article>
+                      <article>
+                        <span>Needs review</span>
+                        <strong>{financeImportPreview.summary.rowsNeedingReview}</strong>
+                      </article>
+                      <article>
+                        <span>Auto-reviewed</span>
+                        <strong>{financeImportPreview.summary.autoReviewedRows}</strong>
+                      </article>
+                      <article>
+                        <span>Expenses / Income</span>
+                        <strong>{financeImportPreview.summary.expenseRows} / {financeImportPreview.summary.incomeRows}</strong>
+                      </article>
+                    </div>
+                    <div className="finance-import-decision">
+                      <strong>
+                        {financeImportPreview.summary.newRows > 0
+                          ? `${financeImportPreview.summary.newRows} new row${financeImportPreview.summary.newRows === 1 ? '' : 's'} will be imported`
+                          : 'No new rows to import'}
+                      </strong>
+                      <small>
+                        {financeImportPreview.summary.duplicateCandidates} duplicate{financeImportPreview.summary.duplicateCandidates === 1 ? '' : 's'} will be skipped. {financeImportPreview.summary.rowsNeedingReview} imported row{financeImportPreview.summary.rowsNeedingReview === 1 ? '' : 's'} will stay in Inbox/Import Review.
+                      </small>
                     </div>
                     <div className="finance-import-row-list">
                       {financeImportPreview.rows.slice(0, 8).map((row) => (
-                        <article className={row.duplicate ? 'duplicate' : 'new'} key={`${row.rowNumber}-${row.description}`}>
+                        <article className={row.duplicate ? 'duplicate' : row.matchedRule ? 'matched-rule' : 'new'} key={`${row.rowNumber}-${row.description}`}>
                           <div>
                             <strong>{row.description}</strong>
-                            <small>{row.transactionDate} · {row.direction} · {pln(row.amount)} · {row.fingerprintStrength === 'stable_transaction_id' ? 'bank id' : 'fingerprint'}</small>
+                            <small>
+                              {row.transactionDate} · {row.direction} · {pln(row.amount)} · {row.fingerprintStrength === 'stable_transaction_id' ? 'bank id' : 'fingerprint'}
+                              {row.matchedRule ? ` · rule: ${row.matchedRule.matchText}` : ''}
+                            </small>
                           </div>
-                          <span>{row.duplicate ? 'Duplicate, skipped' : 'New, needs review'}</span>
+                          <span>
+                            {row.duplicate ? 'Duplicate, skipped' : row.matchedRule ? 'Rule matched, reviewed' : 'New, needs review'}
+                          </span>
                         </article>
                       ))}
                     </div>
@@ -3998,15 +4063,21 @@ function App() {
                       onClick={acceptFinanceImport}
                       disabled={setupState === 'saving' || financeImportPreview.summary.newRows === 0}
                     >
-                      Create {financeImportPreview.summary.newRows} new row{financeImportPreview.summary.newRows === 1 ? '' : 's'}
+                      Import {financeImportPreview.summary.newRows} new row{financeImportPreview.summary.newRows === 1 ? '' : 's'}
                     </button>
                   </div>
                 )}
 
                 {financeImportResult && (
-                  <p className="import-result-note">
-                    Created {financeImportResult.summary.createdRows} row{financeImportResult.summary.createdRows === 1 ? '' : 's'} and skipped {financeImportResult.summary.skippedDuplicates} duplicate{financeImportResult.summary.skippedDuplicates === 1 ? '' : 's'}.
-                  </p>
+                  <div className="import-result-note">
+                    <strong>Import completed</strong>
+                    <span>
+                      Created {financeImportResult.summary.createdExpenses} expense{financeImportResult.summary.createdExpenses === 1 ? '' : 's'} and {financeImportResult.summary.createdIncomeEntries} income row{financeImportResult.summary.createdIncomeEntries === 1 ? '' : 's'}.
+                    </span>
+                    <span>
+                      Skipped {financeImportResult.summary.skippedDuplicates} duplicate{financeImportResult.summary.skippedDuplicates === 1 ? '' : 's'}. {financeImportResult.summary.autoReviewedRows} row{financeImportResult.summary.autoReviewedRows === 1 ? '' : 's'} matched saved rules, {financeImportResult.summary.rowsStillNeedingReview} still need review.
+                    </span>
+                  </div>
                 )}
               </section>
 

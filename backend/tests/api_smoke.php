@@ -288,8 +288,13 @@ $financeImportSource = 'smoke-bank-'.$runId;
 $financeImportDate = (new DateTimeImmutable())->format('Y-m-d');
 $financeImportPath = sys_get_temp_dir().'/home-os-finance-import-'.$runId.'.csv';
 $overlapImportPath = sys_get_temp_dir().'/home-os-finance-import-overlap-'.$runId.'.csv';
+$ruleImportPath = sys_get_temp_dir().'/home-os-finance-import-rules-'.$runId.'.csv';
+$badImportPath = sys_get_temp_dir().'/home-os-finance-import-bad-'.$runId.'.csv';
 $firstImportDescription = 'Smoke duplicate safe coffee '.$runId;
 $overlapImportDescription = 'Smoke overlapping safe shop '.$runId;
+$ruleExpenseDescription = 'Smoke rule expense '.$runId;
+$ruleIncomeDescription = 'Smoke rule income '.$runId;
+$badPartialDescription = 'Smoke partial should not import '.$runId;
 
 file_put_contents($financeImportPath, implode("\n", [
     'transaction_id,date,amount,currency,description,counterparty,account',
@@ -299,6 +304,16 @@ file_put_contents($overlapImportPath, implode("\n", [
     'transaction_id,date,amount,currency,description,counterparty,account',
     sprintf('tx-%s-1,%s,-12.34,PLN,%s,Smoke Cafe,PL123', $runId, $financeImportDate, $firstImportDescription),
     sprintf('tx-%s-2,%s,-45.67,PLN,%s,Smoke Market,PL123', $runId, $financeImportDate, $overlapImportDescription),
+]));
+file_put_contents($ruleImportPath, implode("\n", [
+    'transaction_id,date,amount,currency,description,counterparty,account',
+    sprintf('tx-%s-rule-expense,%s,-77.77,PLN,%s,Smoke Rule Shop,PL123', $runId, $financeImportDate, $ruleExpenseDescription),
+    sprintf('tx-%s-rule-income,%s,1234.56,PLN,%s,Smoke Rule Employer,PL123', $runId, $financeImportDate, $ruleIncomeDescription),
+]));
+file_put_contents($badImportPath, implode("\n", [
+    'transaction_id,date,amount,currency,description,counterparty,account',
+    sprintf('tx-%s-bad-valid,%s,-19.99,PLN,%s,Smoke Bad Shop,PL123', $runId, $financeImportDate, $badPartialDescription),
+    sprintf('tx-%s-bad-invalid,%s,,PLN,Missing amount,Smoke Bad Shop,PL123', $runId, $financeImportDate),
 ]));
 
 $firstImportPreview = apiMultipart(sprintf('/api/households/%s/expenses/import/preview', rawurlencode($householdId)), [
@@ -310,8 +325,12 @@ $firstImportPreview = apiMultipart(sprintf('/api/households/%s/expenses/import/p
 ]);
 
 assertTrue($firstImportPreview['status'] === 200, 'Finance import preview should return 200.');
+assertTrue(($firstImportPreview['body']['summary']['totalRows'] ?? null) === 1, 'First finance import preview should count total rows.');
 assertTrue(($firstImportPreview['body']['summary']['newRows'] ?? null) === 1, 'First finance import preview should show one new row.');
 assertTrue(($firstImportPreview['body']['summary']['duplicateCandidates'] ?? null) === 0, 'First finance import preview should not show duplicates.');
+assertTrue(($firstImportPreview['body']['summary']['rowsNeedingReview'] ?? null) === 1, 'First finance import preview should count rows needing review.');
+assertTrue(($firstImportPreview['body']['summary']['expenseRows'] ?? null) === 1, 'First finance import preview should count expense rows.');
+assertTrue(($firstImportPreview['body']['summary']['incomeRows'] ?? null) === 0, 'First finance import preview should count income rows.');
 
 $firstImportAccept = apiMultipart(sprintf('/api/households/%s/expenses/import/accept', rawurlencode($householdId)), [
     'source' => $financeImportSource,
@@ -323,7 +342,10 @@ $firstImportAccept = apiMultipart(sprintf('/api/households/%s/expenses/import/ac
 
 assertTrue($firstImportAccept['status'] === 201, 'Finance import accept should return 201.');
 assertTrue(($firstImportAccept['body']['summary']['createdRows'] ?? null) === 1, 'First finance import should create one row.');
+assertTrue(($firstImportAccept['body']['summary']['createdExpenses'] ?? null) === 1, 'First finance import should create one expense.');
+assertTrue(($firstImportAccept['body']['summary']['createdIncomeEntries'] ?? null) === 0, 'First finance import should create no income entries.');
 assertTrue(($firstImportAccept['body']['summary']['skippedDuplicates'] ?? null) === 0, 'First finance import should not skip rows.');
+assertTrue(($firstImportAccept['body']['summary']['rowsStillNeedingReview'] ?? null) === 1, 'First finance import should leave imported row for review.');
 
 $secondImportPreview = apiMultipart(sprintf('/api/households/%s/expenses/import/preview', rawurlencode($householdId)), [
     'source' => $financeImportSource,
@@ -374,6 +396,85 @@ assertTrue($overlapImportAccept['status'] === 201, 'Overlapping finance import a
 assertTrue(($overlapImportAccept['body']['summary']['createdRows'] ?? null) === 1, 'Overlapping finance import should create only the new row.');
 assertTrue(($overlapImportAccept['body']['summary']['skippedDuplicates'] ?? null) === 1, 'Overlapping finance import should skip the already imported row.');
 
+$inboxAfterFinanceImport = apiRequest('GET', sprintf('/api/households/%s/inbox', rawurlencode($householdId)));
+$financeInboxItemsAfterImport = array_values(array_filter(
+    $inboxAfterFinanceImport['body']['items'] ?? [],
+    static fn (array $item): bool => ($item['sourceModule'] ?? null) === 'expenses' && ($item['sourceType'] ?? null) === 'expense_review',
+));
+
+assertTrue(count($financeInboxItemsAfterImport) >= 2, 'Inbox should include uncertain imported finance rows after import.');
+
+$dashboardAfterFinanceImport = apiRequest('GET', '/api/dashboard');
+$financeImportAttention = array_values(array_filter(
+    $dashboardAfterFinanceImport['body']['attention'] ?? [],
+    static fn (array $item): bool => ($item['id'] ?? null) === 'expenses-import-review' && ($item['targetSection'] ?? null) === 'import-review',
+));
+
+assertTrue(($dashboardAfterFinanceImport['body']['summary']['financeReviewCount'] ?? 0) >= 2, 'Dashboard should count imported finance rows needing review.');
+assertTrue(count($financeImportAttention) === 1, 'Dashboard should link imported finance review attention to Expenses import review.');
+
+$createExpenseRule = apiRequest('POST', sprintf('/api/households/%s/expenses/review-rules/apply', rawurlencode($householdId)), [
+    'targetType' => 'expense',
+    'matchText' => $ruleExpenseDescription,
+    'month' => (new DateTimeImmutable())->format('Y-m'),
+    'categoryId' => $categoryId,
+    'incomeKind' => null,
+]);
+
+assertTrue($createExpenseRule['status'] === 200, 'Creating saved expense review rule should return 200.');
+
+$createIncomeRule = apiRequest('POST', sprintf('/api/households/%s/expenses/review-rules/apply', rawurlencode($householdId)), [
+    'targetType' => 'income',
+    'matchText' => $ruleIncomeDescription,
+    'month' => (new DateTimeImmutable())->format('Y-m'),
+    'categoryId' => null,
+    'incomeKind' => 'salary',
+]);
+
+assertTrue($createIncomeRule['status'] === 200, 'Creating saved income review rule should return 200.');
+
+$ruleImportPreview = apiMultipart(sprintf('/api/households/%s/expenses/import/preview', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import-rules.csv',
+    'path' => $ruleImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($ruleImportPreview['status'] === 200, 'Finance import preview with saved rules should return 200.');
+assertTrue(($ruleImportPreview['body']['summary']['totalRows'] ?? null) === 2, 'Rule import preview should count both rows.');
+assertTrue(($ruleImportPreview['body']['summary']['expenseRows'] ?? null) === 1, 'Rule import preview should count expense row.');
+assertTrue(($ruleImportPreview['body']['summary']['incomeRows'] ?? null) === 1, 'Rule import preview should count income row.');
+assertTrue(($ruleImportPreview['body']['summary']['matchedRuleRows'] ?? null) === 2, 'Rule import preview should match saved rules.');
+assertTrue(($ruleImportPreview['body']['summary']['autoReviewedRows'] ?? null) === 2, 'Rule import preview should count auto-reviewed rows.');
+assertTrue(($ruleImportPreview['body']['summary']['rowsNeedingReview'] ?? null) === 0, 'Rule import preview should leave no matched rows needing review.');
+assertTrue(is_array($ruleImportPreview['body']['rows'][0]['matchedRule'] ?? null), 'Rule import preview rows should show matched rule.');
+
+$ruleImportAccept = apiMultipart(sprintf('/api/households/%s/expenses/import/accept', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import-rules.csv',
+    'path' => $ruleImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($ruleImportAccept['status'] === 201, 'Finance import accept with saved rules should return 201.');
+assertTrue(($ruleImportAccept['body']['summary']['createdExpenses'] ?? null) === 1, 'Rule import should create one expense.');
+assertTrue(($ruleImportAccept['body']['summary']['createdIncomeEntries'] ?? null) === 1, 'Rule import should create one income entry.');
+assertTrue(($ruleImportAccept['body']['summary']['matchedRuleRows'] ?? null) === 2, 'Rule import should apply saved rules.');
+assertTrue(($ruleImportAccept['body']['summary']['rowsStillNeedingReview'] ?? null) === 0, 'Rule import should auto-review matched rows.');
+
+$badImportAccept = apiMultipart(sprintf('/api/households/%s/expenses/import/accept', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import-bad.csv',
+    'path' => $badImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($badImportAccept['status'] === 400, 'Bad finance import should return 400.');
+assertTrue(is_string($badImportAccept['body']['error'] ?? null) && str_contains((string) $badImportAccept['body']['error'], 'amount'), 'Bad finance import should return useful parse error.');
+
 $expensesAfterImport = apiRequest('GET', sprintf('/api/households/%s/expenses/overview?month=%s', rawurlencode($householdId), rawurlencode((new DateTimeImmutable())->format('Y-m'))));
 $importedDescriptions = array_map(
     static fn (array $item): string => (string) ($item['description'] ?? ''),
@@ -382,6 +483,8 @@ $importedDescriptions = array_map(
 
 assertTrue(count(array_filter($importedDescriptions, static fn (string $description): bool => str_contains($description, $firstImportDescription))) === 1, 'Duplicate finance import should leave only one matching expense.');
 assertTrue(count(array_filter($importedDescriptions, static fn (string $description): bool => str_contains($description, $overlapImportDescription))) === 1, 'Overlapping finance import should create the new transaction once.');
+assertTrue(count(array_filter($importedDescriptions, static fn (string $description): bool => str_contains($description, $ruleExpenseDescription))) === 1, 'Rule finance import should create matched expense once.');
+assertTrue(count(array_filter($importedDescriptions, static fn (string $description): bool => str_contains($description, $badPartialDescription))) === 0, 'Failed finance import should not create partial expense rows.');
 
 $reviewExpense = apiRequest('POST', sprintf('/api/households/%s/expenses', rawurlencode($householdId)), [
     'categoryId' => $categoryId,
