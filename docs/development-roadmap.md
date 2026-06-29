@@ -49,6 +49,7 @@ If the answer is no, do not implement it yet.
 - Inbox + Daily Review MVP: thin aggregation of Expenses, Health, and Home review items with source navigation and Dashboard summary.
 - Generic Reminders MVP: household reminders with due dates, simple recurrence, complete/skip, Dashboard attention, and Inbox/Daily Review integration.
 - Generic Documents MVP: household document metadata, optional file upload/download, soft delete, expiry dates, Dashboard attention, and Inbox/Daily Review integration.
+- Search + Timeline Foundation: read-only global search across implemented modules and deterministic household activity timeline.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
@@ -92,7 +93,7 @@ If the answer is no, do not implement it yet.
 - Better onboarding/default data setup.
 - Mobile bottom navigation and mobile-first quick entry.
 - Notification preferences.
-- Global search.
+- Search exists for implemented modules; ranking, richer filters, and future full-text indexing remain later work.
 
 ## 2. Long-Term Vision
 
@@ -273,6 +274,8 @@ Status: completed for the smallest useful version. Generic documents are indepen
 - Acceptance: contracts, warranties, invoices, manuals can be stored and found.
 
 ### Milestone 6: Search + Timeline Foundation
+
+Status: completed for the smallest useful version. Search and Timeline are read-only query layers assembled from existing records; no indexing table, search engine, or event-sourcing model was introduced.
 
 - Add Global Search MVP across Expenses, Health, Documents, Home tasks, and Reminders as those domains exist.
 - Add Timeline read model for important household events generated from domain records.
@@ -470,8 +473,8 @@ Future milestones should introduce these interfaces incrementally:
 - Dashboard Decision Center: returns prioritized actions and navigates to the right source workflows.
 - Inbox: aggregates review-needed Expenses and Health items without duplicating source data ownership.
 - Review workflows: Daily Review includes today/overdue/imported items; Weekly/Monthly can start as read-only summaries.
-- Search: finds seeded records across implemented modules once Search MVP exists.
-- Timeline: displays deterministic events generated from implemented modules once Timeline MVP exists.
+- Search: finds seeded records across implemented modules.
+- Timeline: displays deterministic events generated from implemented modules.
 - Expenses: add/edit/delete expense, import review rule, undo batch, budget warning, overdue bill attention.
 - Health: upload document, extract markers, import blood test, out-of-range attention, stale marker attention.
 - Future Home: create task, mark done, recurrence creates next due task or computes next due date, dashboard shows overdue/upcoming.

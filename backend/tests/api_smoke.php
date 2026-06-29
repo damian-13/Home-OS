@@ -699,6 +699,49 @@ assertTrue(in_array('home', $inboxSources, true), 'Inbox should include home mai
 assertTrue(in_array('reminders', $inboxSources, true), 'Inbox should include due reminder items.');
 assertTrue(in_array('documents', $inboxSources, true), 'Inbox should include expired and expiring document items.');
 
+$search = apiRequest('GET', sprintf('/api/households/%s/search?q=Smoke', rawurlencode($householdId)));
+
+assertTrue($search['status'] === 200, 'Search should return 200 for household member.');
+assertTrue(is_array($search['body']['results'] ?? null), 'Search should include results list.');
+assertTrue(count($search['body']['results']) >= 3, 'Search should return records from multiple modules.');
+
+$searchSources = array_values(array_unique(array_map(
+    static fn (array $item): string => (string) ($item['sourceModule'] ?? ''),
+    $search['body']['results'],
+)));
+
+assertTrue(count($searchSources) >= 3, 'Search should include at least three source modules.');
+assertTrue(in_array('expenses', $searchSources, true), 'Search should include expense results.');
+assertTrue(in_array('health', $searchSources, true), 'Search should include health results.');
+assertTrue(in_array('documents', $searchSources, true), 'Search should include document results.');
+assertTrue(count(array_filter(
+    $search['body']['results'],
+    static fn (array $item): bool => is_string($item['targetUrl'] ?? null) && str_starts_with((string) $item['targetUrl'], '#'),
+)) === count($search['body']['results']), 'Search results should include source navigation targets.');
+
+$forbiddenSearch = apiRequest('GET', sprintf('/api/households/%s/search?q=Smoke', rawurlencode(sprintf('%s-%s-%s-%s-%s', bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(6))))));
+assertTrue($forbiddenSearch['status'] === 403, 'Search should respect household access boundaries.');
+
+$timeline = apiRequest('GET', sprintf('/api/households/%s/timeline', rawurlencode($householdId)));
+
+assertTrue($timeline['status'] === 200, 'Timeline should return 200 for household member.');
+assertTrue(is_array($timeline['body']['items'] ?? null), 'Timeline should include items list.');
+assertTrue(count($timeline['body']['items']) >= 3, 'Timeline should return events from multiple modules.');
+
+$timelineSources = array_values(array_unique(array_map(
+    static fn (array $item): string => (string) ($item['sourceModule'] ?? ''),
+    $timeline['body']['items'],
+)));
+
+assertTrue(count($timelineSources) >= 3, 'Timeline should include at least three source modules.');
+assertTrue(in_array('expenses', $timelineSources, true), 'Timeline should include expense events.');
+assertTrue(in_array('health', $timelineSources, true), 'Timeline should include health events.');
+assertTrue(in_array('documents', $timelineSources, true), 'Timeline should include document events.');
+assertTrue(count(array_filter(
+    $timeline['body']['items'],
+    static fn (array $item): bool => is_string($item['targetUrl'] ?? null) && str_starts_with((string) $item['targetUrl'], '#') && is_string($item['occurredAt'] ?? null),
+)) === count($timeline['body']['items']), 'Timeline items should include date and source navigation targets.');
+
 $dashboardWithInbox = apiRequest('GET', '/api/dashboard');
 
 assertTrue(array_key_exists('inboxItemsDue', $dashboardWithInbox['body']['summary'] ?? []), 'Dashboard summary should include inbox item count.');

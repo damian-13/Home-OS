@@ -336,7 +336,43 @@ type HouseholdDocument = {
   updatedAt: string | null
 }
 
-type AppPage = 'dashboard' | 'household' | 'home' | 'reminders' | 'inbox' | 'expenses' | 'health' | 'documents'
+type SearchResult = {
+  id: string
+  sourceModule: 'expenses' | 'health' | 'home' | 'reminders' | 'documents'
+  sourceType: string
+  sourceId: string
+  title: string
+  detail: string
+  date: string | null
+  targetUrl: string
+  relevance: number
+}
+
+type SearchResponse = {
+  query: string
+  results: SearchResult[]
+  grouped: Record<string, number>
+}
+
+type TimelineItem = {
+  id: string
+  sourceModule: 'expenses' | 'health' | 'home' | 'reminders' | 'documents'
+  sourceType: string
+  sourceId: string
+  eventType: string
+  title: string
+  detail: string
+  occurredAt: string
+  targetUrl: string
+  importance: 'low' | 'normal' | 'high'
+}
+
+type TimelineResponse = {
+  items: TimelineItem[]
+  grouped: Record<string, number>
+}
+
+type AppPage = 'dashboard' | 'household' | 'home' | 'reminders' | 'inbox' | 'search' | 'timeline' | 'expenses' | 'health' | 'documents'
 type ExpenseSection = 'overview' | 'monthly-review' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
@@ -432,6 +468,10 @@ function App() {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [documents, setDocuments] = useState<HouseholdDocument[]>([])
   const [inbox, setInbox] = useState<Inbox>({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResponse, setSearchResponse] = useState<SearchResponse>({ query: '', results: [], grouped: {} })
+  const [timeline, setTimeline] = useState<TimelineResponse>({ items: [], grouped: {} })
+  const [timelineModuleFilter, setTimelineModuleFilter] = useState('')
   const [householdName, setHouseholdName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -555,7 +595,7 @@ function App() {
     const readPageFromHash = () => {
       const page = window.location.hash.replace('#', '') as AppPage
 
-      if (['dashboard', 'household', 'home', 'reminders', 'inbox', 'expenses', 'health', 'documents'].includes(page)) {
+      if (['dashboard', 'household', 'home', 'reminders', 'inbox', 'search', 'timeline', 'expenses', 'health', 'documents'].includes(page)) {
         setActivePage(page)
       }
     }
@@ -589,6 +629,7 @@ function App() {
           loadReminders(user.householdId),
           loadDocuments(user.householdId),
           loadInbox(user.householdId),
+          loadTimeline(user.householdId),
           loadExpenseOverview(user.householdId),
           loadHealthOverview(user.householdId),
           loadHealthDocuments(user.householdId),
@@ -634,6 +675,7 @@ function App() {
       await loadReminders(user.householdId)
       await loadDocuments(user.householdId)
       await loadInbox(user.householdId)
+      await loadTimeline(user.householdId)
       await loadExpenseOverview(user.householdId)
       await loadHealthOverview(user.householdId)
       await loadHealthDocuments(user.householdId)
@@ -660,6 +702,10 @@ function App() {
     setReminders([])
     setDocuments([])
     setInbox({ items: [], summary: { total: 0, critical: 0, warning: 0, info: 0, highestSeverity: null } })
+    setSearchQuery('')
+    setSearchResponse({ query: '', results: [], grouped: {} })
+    setTimeline({ items: [], grouped: {} })
+    setTimelineModuleFilter('')
     setMarkerHistory([])
     setDashboard(fallbackDashboard)
     window.localStorage.removeItem(householdStorageKey)
@@ -693,12 +739,14 @@ function App() {
   const refreshExpenseAndDashboard = async (householdId: string) => {
     await loadExpenseOverview(householdId)
     await loadInbox(householdId)
+    await loadTimeline(householdId)
     await loadDashboard()
   }
 
   const refreshHealthAndInbox = async (householdId: string) => {
     await loadHealthOverview(householdId)
     await loadInbox(householdId)
+    await loadTimeline(householdId)
     await loadDashboard()
   }
 
@@ -719,6 +767,7 @@ function App() {
   const refreshRemindersDashboardAndInbox = async (householdId: string) => {
     await loadReminders(householdId)
     await loadInbox(householdId)
+    await loadTimeline(householdId)
     await loadDashboard()
   }
 
@@ -730,13 +779,30 @@ function App() {
   const refreshDocumentsDashboardAndInbox = async (householdId: string) => {
     await loadDocuments(householdId)
     await loadInbox(householdId)
+    await loadTimeline(householdId)
     await loadDashboard()
   }
 
   const refreshHomeAndDashboard = async (householdId: string) => {
     await loadHomeTasks(householdId)
     await loadInbox(householdId)
+    await loadTimeline(householdId)
     await loadDashboard()
+  }
+
+  const loadTimeline = async (householdId: string) => {
+    setTimeline(await apiJson<TimelineResponse>(`/api/households/${householdId}/timeline`))
+  }
+
+  const searchEverything = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+
+    if (!household || searchQuery.trim().length < 2) {
+      setSearchResponse({ query: searchQuery.trim(), results: [], grouped: {} })
+      return
+    }
+
+    setSearchResponse(await apiJson<SearchResponse>(`/api/households/${household.id}/search?q=${encodeURIComponent(searchQuery.trim())}`))
   }
 
   useEffect(() => {
@@ -1970,6 +2036,15 @@ function App() {
     { label: 'Expiring soon', documents: expiringDocuments, tone: 'warning' },
     { label: 'All documents', documents, tone: 'calm' },
   ]
+  const timelineModules = ['expenses', 'health', 'home', 'reminders', 'documents']
+  const filteredTimelineItems = timelineModuleFilter
+    ? timeline.items.filter((item) => item.sourceModule === timelineModuleFilter)
+    : timeline.items
+  const latestTimelineItem = timeline.items[0] ?? null
+  const searchGroups = ['expenses', 'health', 'home', 'reminders', 'documents'].map((module) => ({
+    module,
+    results: searchResponse.results.filter((result) => result.sourceModule === module),
+  })).filter((group) => group.results.length > 0)
   const inboxGroups = {
     critical: inbox.items.filter((item) => item.severity === 'critical'),
     warning: inbox.items.filter((item) => item.severity === 'warning'),
@@ -2159,6 +2234,15 @@ function App() {
     }
   }
 
+  const openTargetUrl = (targetUrl: string) => {
+    const page = targetUrl.replace('#', '') as AppPage
+
+    if (page) {
+      setActivePage(page)
+      window.location.hash = page
+    }
+  }
+
   const openExpensesSection = (section: ExpenseSection) => {
     setActivePage('expenses')
     setExpenseSection(section)
@@ -2205,6 +2289,26 @@ function App() {
   ]
 
   const dailyActionCards = [
+    {
+      title: 'Search everything',
+      detail: 'Find expenses, lab results, tasks, reminders, and documents.',
+      tone: 'good',
+      action: 'Open search',
+      onClick: () => {
+        setActivePage('search')
+        window.location.hash = 'search'
+      },
+    },
+    {
+      title: 'Recent household activity',
+      detail: latestTimelineItem ? `${latestTimelineItem.sourceModule} · ${latestTimelineItem.title}` : 'No activity yet',
+      tone: latestTimelineItem?.importance === 'high' ? 'warning' : 'good',
+      action: 'Open timeline',
+      onClick: () => {
+        setActivePage('timeline')
+        window.location.hash = 'timeline'
+      },
+    },
     {
       title: 'Documents expiring',
       detail: `${expiredDocuments.length} expired · ${expiringDocuments.length} expiring soon`,
@@ -2284,6 +2388,8 @@ function App() {
     { page: 'home', label: 'Home' },
     { page: 'reminders', label: 'Reminders' },
     { page: 'inbox', label: 'Inbox' },
+    { page: 'search', label: 'Search' },
+    { page: 'timeline', label: 'Timeline' },
     { page: 'expenses', label: 'Expenses' },
     { page: 'health', label: 'Health' },
     { page: 'documents', label: 'Documents' },
@@ -2324,6 +2430,16 @@ function App() {
       eyebrow: 'Inbox',
       title: 'One place to review what needs attention.',
       copy: 'A thin review layer over Expenses, Health, and Home maintenance without duplicating source data.',
+    },
+    search: {
+      eyebrow: 'Search',
+      title: 'Find anything without remembering where it lives.',
+      copy: 'Search expenses, health markers, home tasks, reminders, and household documents.',
+    },
+    timeline: {
+      eyebrow: 'Timeline',
+      title: 'A chronological history of household activity.',
+      copy: 'Review important money, health, home, reminder, and document events in one stream.',
     },
     expenses: {
       eyebrow: 'Expenses',
@@ -3043,6 +3159,117 @@ function App() {
             </div>
 
             {setupState === 'error' && <p className="form-error">Could not save reminder data.</p>}
+          </section>
+        )}
+
+        {activePage === 'search' && (
+          <section className="search-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Global Search</p>
+                <h2>Search across Home OS.</h2>
+              </div>
+            </div>
+
+            <form className="setup-form search-form" onSubmit={searchEverything}>
+              <label>
+                Search
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="OBI, LDL, warranty, filter, invoice..."
+                  minLength={2}
+                />
+              </label>
+              <button type="submit" disabled={!household || searchQuery.trim().length < 2}>
+                Search
+              </button>
+            </form>
+
+            <div className="search-summary-grid">
+              {timelineModules.map((module) => (
+                <article key={module}>
+                  <span>{module}</span>
+                  <strong>{searchResponse.grouped[module] ?? 0}</strong>
+                </article>
+              ))}
+            </div>
+
+            <div className="search-results">
+              {searchResponse.query && searchResponse.results.length === 0 && (
+                <p className="empty-state">No results for “{searchResponse.query}”.</p>
+              )}
+
+              {!searchResponse.query && (
+                <p className="empty-state">Type at least two characters to search implemented modules.</p>
+              )}
+
+              {searchGroups.map((group) => (
+                <section className="search-result-group" key={group.module}>
+                  <div className="panel-heading-row">
+                    <div>
+                      <p className="eyebrow">{group.module}</p>
+                      <h3>{group.results.length} result{group.results.length === 1 ? '' : 's'}</h3>
+                    </div>
+                  </div>
+
+                  <div className="search-result-list">
+                    {group.results.map((result) => (
+                      <button className="search-result-item" type="button" onClick={() => openTargetUrl(result.targetUrl)} key={result.id}>
+                        <span>
+                          <strong>{result.title}</strong>
+                          <small>{result.sourceType} · {result.detail}</small>
+                        </span>
+                        <em>{result.date ?? 'open'}</em>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activePage === 'timeline' && (
+          <section className="timeline-panel page-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">History</p>
+                <h2>Household timeline.</h2>
+              </div>
+              <select value={timelineModuleFilter} onChange={(event) => setTimelineModuleFilter(event.target.value)}>
+                <option value="">All modules</option>
+                {timelineModules.map((module) => (
+                  <option value={module} key={module}>{module}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="timeline-summary-grid">
+              {timelineModules.map((module) => (
+                <article key={module}>
+                  <span>{module}</span>
+                  <strong>{timeline.grouped[module] ?? 0}</strong>
+                </article>
+              ))}
+            </div>
+
+            <div className="timeline-list">
+              {filteredTimelineItems.length > 0 ? (
+                filteredTimelineItems.map((item) => (
+                  <button className={`timeline-item ${item.importance}`} type="button" onClick={() => openTargetUrl(item.targetUrl)} key={item.id}>
+                    <span className="timeline-dot"></span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.sourceModule} · {item.eventType} · {item.detail}</small>
+                    </span>
+                    <em>{item.occurredAt.slice(0, 10)}</em>
+                  </button>
+                ))
+              ) : (
+                <p className="empty-state">No timeline events yet.</p>
+              )}
+            </div>
           </section>
         )}
 
