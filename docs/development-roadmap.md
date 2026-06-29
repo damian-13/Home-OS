@@ -66,27 +66,26 @@ If the answer is no, do not implement it yet.
 ### Incomplete
 
 - No real notification pipeline.
-- No backup/export workflow.
-- No mobile-specific UX beyond responsive CSS.
+- Restore is still out of scope; export exists as JSON source-data backup.
+- Attachment export is metadata-only for now; uploaded files remain downloadable through protected endpoints.
 
 ### Technical Debt
 
 - `frontend/src/App.tsx` and `frontend/src/App.css` are still large, but Dashboard, Inbox, Search, Timeline, and Quick Actions have started moving into feature folders.
 - Architecture docs mention React Router and TanStack Query, but the app still uses hash routing and local `useState` fetches.
 - Backend smoke coverage and lightweight frontend smoke checks exist; broader automated API/component/browser coverage is still missing.
-- Shared concepts from docs, such as Attachment, AuditLog, and Tag, are not implemented.
-- File storage is local but not encrypted.
-- Imported finance data exists locally, but bank import UI is not implemented.
+- Shared concepts from docs, such as a reusable Attachment model and richer Tag model, are not implemented.
+- File storage is local and upload-hardened, but not encrypted.
+- Audit logs exist for the MVP, but there is no audit log UI or reporting workflow yet.
 
 ### Missing Infrastructure
 
 - Broader Symfony API test harness beyond the smoke script.
 - Broader frontend test setup beyond lightweight source-level smoke checks.
-- CI checks.
-- Audit logging for sensitive health/finance changes.
+- Hosted CI service wiring; local `make check` exists.
 - Background jobs via Messenger for parsing, reminders, notifications, and future integrations.
-- Backup/export and restore path.
-- Security hardening for uploaded files.
+- Restore path for JSON exports.
+- Encrypted file storage and attachment-in-archive export.
 
 ### Missing UX
 
@@ -214,15 +213,10 @@ Do not over-instrument early. Start with product definitions, then add lightweig
 | P1 | Dashboard signals for home tasks and document expiry | Turns Dashboard into true daily start page | S/M | Very High |
 | P1 | Daily/Weekly/Monthly Review workflows | Builds the habit loop and reduces forgotten work | M | Very High |
 | P1 | Health Review Center | Reduces stress around imported/unknown/out-of-range markers | M | High |
-| P1 | Bank import UI | Removes manual developer-assisted imports | M/H | Very High |
-| P1 | Saved finance rules auto-apply on import | Reduces repetitive review work | M | High |
 | P1 | Global Search MVP | Removes need to remember which module owns a record | M/H | Very High |
 | P1 | Mobile-first navigation and quick actions | Makes daily capture realistic | M | High |
 | P2 | Timeline MVP | Creates household history from important records | M | High |
-| P2 | Audit logs for finance/health/documents | Needed for trust and safety | M | High |
-| P2 | Backup/export workflow | Protects local-first data | M/H | Very High |
 | P2 | Email reminder digest | Prevents forgotten tasks without app checking | M | High |
-| P2 | Document file security hardening | Protects sensitive files | M | High |
 | P3 | Life Events domain | Connects major household changes across modules | M/H | Medium/High |
 | P3 | Calendar integration | Useful after reminders/tasks are stable | H | Medium/High |
 | P3 | Home Assistant status integration | Valuable later, not before home/domain basics | H | Medium |
@@ -365,9 +359,9 @@ Status: completed for the smallest useful version. Attachment export is intentio
 ### Security
 
 - Keep files outside public web root.
-- Add file type/size validation and safer download headers.
-- Add audit logs for health, finance, documents.
-- Add backup/export before relying on app as source of truth.
+- Keep file type/size validation and safer download headers covered by tests as upload paths evolve.
+- Extend audit coverage only when new sensitive workflows are introduced.
+- JSON export exists for source data; restore, encrypted storage, and attachment archive export remain future reliability work.
 - Roles remain out of scope until more than one access level is genuinely needed.
 
 ### Performance
@@ -378,7 +372,7 @@ Status: completed for the smallest useful version. Attachment export is intentio
 
 ### Developer Experience
 
-- Add `make check` for backend container lint, schema validation, frontend build.
+- Keep `make check` green for backend smoke tests, Symfony container lint, Doctrine schema validation, frontend build, and frontend smoke checks.
 - Add `make test` once tests exist.
 - Keep AGENTS and roadmap synchronized.
 

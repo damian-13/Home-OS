@@ -695,6 +695,9 @@ function App() {
   const [extractedText, setExtractedText] = useState('')
   const [extractionStatus, setExtractionStatus] = useState<DocumentExtraction['status'] | ''>('')
   const [extractionMessage, setExtractionMessage] = useState('')
+  const defaultMemberId = currentUser?.linkedMemberId ?? household?.members[0]?.id ?? ''
+  const effectiveBloodTestMemberId = bloodTestMemberId || defaultMemberId
+  const effectiveDocumentMemberId = documentMemberId || defaultMemberId
 
   useEffect(() => {
     const readPageFromHash = () => {
@@ -819,7 +822,7 @@ function App() {
     window.localStorage.removeItem(householdStorageKey)
   }
 
-  const loadExpenseOverview = async (householdId: string) => {
+  async function loadExpenseOverview(householdId: string) {
     const params = new URLSearchParams()
     params.set('month', expenseFilterMonth)
 
@@ -859,16 +862,16 @@ function App() {
     await loadDashboard()
   }
 
-  const loadHomeTasks = async (householdId: string) => {
+  async function loadHomeTasks(householdId: string) {
     const response = await apiJson<{ tasks: HomeMaintenanceTask[] }>(`/api/households/${householdId}/home/maintenance-tasks`)
     setHomeTasks(response.tasks)
   }
 
-  const loadInbox = async (householdId: string) => {
+  async function loadInbox(householdId: string) {
     setInbox(await apiJson<Inbox>(`/api/households/${householdId}/inbox`))
   }
 
-  const loadReminders = async (householdId: string) => {
+  async function loadReminders(householdId: string) {
     const response = await apiJson<{ reminders: Reminder[] }>(`/api/households/${householdId}/reminders`)
     setReminders(response.reminders)
   }
@@ -880,7 +883,7 @@ function App() {
     await loadDashboard()
   }
 
-  const loadDocuments = async (householdId: string) => {
+  async function loadDocuments(householdId: string) {
     const response = await apiJson<{ documents: HouseholdDocument[] }>(`/api/households/${householdId}/documents`)
     setDocuments(response.documents)
   }
@@ -899,7 +902,7 @@ function App() {
     await loadDashboard()
   }
 
-  const loadTimeline = async (householdId: string) => {
+  async function loadTimeline(householdId: string) {
     setTimeline(await apiJson<TimelineResponse>(`/api/households/${householdId}/timeline`))
   }
 
@@ -920,7 +923,7 @@ function App() {
     }
   }, [expenseFilterMonth, expenseFilterCategoryId, expenseFilterPaidByMemberId])
 
-  const loadHealthOverview = async (householdId: string) => {
+  async function loadHealthOverview(householdId: string) {
     const params = new URLSearchParams()
 
     if (healthMemberFilterId) {
@@ -936,11 +939,11 @@ function App() {
     }
   }
 
-  const loadHealthReview = async (householdId: string) => {
+  async function loadHealthReview(householdId: string) {
     setHealthReview(await apiJson<HealthReview>(`/api/households/${householdId}/health/review`))
   }
 
-  const loadHealthDocuments = async (householdId: string) => {
+  async function loadHealthDocuments(householdId: string) {
     const params = new URLSearchParams()
 
     if (healthMemberFilterId) {
@@ -951,7 +954,7 @@ function App() {
     setHealthDocuments(await apiJson<HealthDocument[]>(`/api/households/${householdId}/health/documents${suffix}`))
   }
 
-  const loadMarkerHistory = async (householdId: string, markerName: string) => {
+  async function loadMarkerHistory(householdId: string, markerName: string) {
     if (!markerName) {
       setMarkerHistory([])
       return
@@ -971,15 +974,6 @@ function App() {
   }
 
   useEffect(() => {
-    if (household && !bloodTestMemberId) {
-      setBloodTestMemberId(currentUser?.linkedMemberId ?? household.members[0]?.id ?? '')
-    }
-    if (household && !documentMemberId) {
-      setDocumentMemberId(currentUser?.linkedMemberId ?? household.members[0]?.id ?? '')
-    }
-  }, [household, currentUser, bloodTestMemberId, documentMemberId])
-
-  useEffect(() => {
     if (currentUser) {
       loadHealthOverview(currentUser.householdId).catch(() => setSetupState('error'))
       loadHealthDocuments(currentUser.householdId).catch(() => setSetupState('error'))
@@ -988,7 +982,19 @@ function App() {
 
   useEffect(() => {
     if (currentUser && selectedMarkerName) {
-      loadMarkerHistory(currentUser.householdId, selectedMarkerName).catch(() => setSetupState('error'))
+      const params = new URLSearchParams()
+
+      if (healthMemberFilterId) {
+        params.set('memberId', healthMemberFilterId)
+      }
+
+      const suffix = params.toString() ? `?${params.toString()}` : ''
+
+      apiJson<BloodTestMarker[]>(
+        `/api/households/${currentUser.householdId}/health/markers/${encodeURIComponent(selectedMarkerName)}/history${suffix}`,
+      )
+        .then(setMarkerHistory)
+        .catch(() => setSetupState('error'))
     }
   }, [selectedMarkerName, healthMemberFilterId])
 
@@ -1925,7 +1931,7 @@ function App() {
   const addBloodTest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!household || !bloodTestMemberId) {
+    if (!household || !effectiveBloodTestMemberId) {
       return
     }
 
@@ -1935,7 +1941,7 @@ function App() {
       await apiJson<{ id: string }>(`/api/households/${household.id}/health/blood-tests`, {
         method: 'POST',
         body: JSON.stringify({
-          memberId: bloodTestMemberId,
+          memberId: effectiveBloodTestMemberId,
           testedAt: bloodTestTestedAt,
           labName: bloodTestLabName || null,
           notes: bloodTestNotes || null,
@@ -2093,8 +2099,8 @@ function App() {
     body.append('file', documentFile)
     body.append('documentType', 'lab_result')
 
-    if (documentMemberId) {
-      body.append('memberId', documentMemberId)
+    if (effectiveDocumentMemberId) {
+      body.append('memberId', effectiveDocumentMemberId)
     }
 
     setSetupState('saving')
@@ -2332,7 +2338,7 @@ function App() {
       return false
     }
 
-    const daysSince = (Date.now() - new Date(newest.testedAt).getTime()) / (1000 * 60 * 60 * 24)
+    const daysSince = (new Date(`${today}T00:00:00`).getTime() - new Date(newest.testedAt).getTime()) / (1000 * 60 * 60 * 24)
 
     return daysSince > 365
   }).slice(0, 6)
@@ -2396,7 +2402,7 @@ function App() {
 
   const openAttentionTarget = (item: Dashboard['attention'][number]) => {
     setActivePage(item.targetPage)
-    window.location.hash = item.targetPage
+    window.history.pushState(null, '', `#${item.targetPage}`)
 
     if (item.targetPage === 'expenses' && item.targetSection) {
       setExpenseSection(item.targetSection)
@@ -2405,7 +2411,7 @@ function App() {
 
   const openInboxTarget = (item: Pick<InboxItem, 'targetPage' | 'targetSection'>) => {
     setActivePage(item.targetPage)
-    window.location.hash = item.targetPage
+    window.history.pushState(null, '', `#${item.targetPage}`)
 
     if (item.targetPage === 'expenses' && item.targetSection) {
       setExpenseSection(item.targetSection)
@@ -2417,7 +2423,7 @@ function App() {
 
     if (page) {
       setActivePage(page)
-      window.location.hash = page
+      window.history.pushState(null, '', `#${page}`)
     }
   }
 
@@ -2425,7 +2431,7 @@ function App() {
     const test = healthOverview?.latestBloodTests.find((candidate) => candidate.id === item.labTestId)
 
     setActivePage('health')
-    window.location.hash = 'health'
+    window.history.pushState(null, '', '#health')
 
     if (test) {
       startEditBloodTest(test)
@@ -2435,7 +2441,7 @@ function App() {
   const openExpensesSection = (section: ExpenseSection) => {
     setActivePage('expenses')
     setExpenseSection(section)
-    window.location.hash = 'expenses'
+    window.history.pushState(null, '', '#expenses')
   }
 
   const modules = [
@@ -4536,7 +4542,7 @@ function App() {
                   <h3>Blood test details</h3>
                   <label>
                     Family member
-                    <select value={bloodTestMemberId} onChange={(event) => setBloodTestMemberId(event.target.value)} required>
+                    <select value={effectiveBloodTestMemberId} onChange={(event) => setBloodTestMemberId(event.target.value)} required>
                       {(household?.members ?? []).map((member) => (
                         <option value={member.id} key={member.id}>{member.displayName}</option>
                       ))}
@@ -4650,7 +4656,7 @@ function App() {
               <form className="setup-form document-upload-form" onSubmit={uploadHealthDocument}>
                 <label>
                   Family member
-                  <select value={documentMemberId} onChange={(event) => setDocumentMemberId(event.target.value)}>
+                  <select value={effectiveDocumentMemberId} onChange={(event) => setDocumentMemberId(event.target.value)}>
                     <option value="">Household</option>
                     {(household?.members ?? []).map((member) => (
                       <option value={member.id} key={member.id}>{member.displayName}</option>
