@@ -51,13 +51,14 @@ If the answer is no, do not implement it yet.
 - Generic Documents MVP: household document metadata, optional file upload/download, soft delete, expiry dates, Dashboard attention, and Inbox/Daily Review integration.
 - Search + Timeline Foundation: read-only global search across implemented modules and deterministic household activity timeline.
 - Health Review Center: deterministic health data-quality queue for out-of-range, unknown, suspicious, duplicate-looking, and stale lab data.
+- Daily UX Stabilization: Dashboard Decision Center structure, global quick actions, Inbox filters, setup-focused empty states, grouped timeline spending, and lightweight frontend smoke coverage.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
 
 - Backend is already organized by domain with DDD/CQRS-style commands, queries, handlers, repositories, and thin controllers.
 - Expenses has real daily value and useful review workflows.
-- Dashboard is no longer static and already surfaces finance/health/home/reminder/inbox attention.
+- Dashboard is no longer static and is organized around Today, Quick Capture, Review, and Recent Activity.
 - Health import flow is practical for historical lab results.
 
 ### Incomplete
@@ -68,17 +69,17 @@ If the answer is no, do not implement it yet.
 
 ### Technical Debt
 
-- `frontend/src/App.tsx` and `frontend/src/App.css` are too large and should be split by feature.
+- `frontend/src/App.tsx` and `frontend/src/App.css` are still large, but Dashboard, Inbox, Search, Timeline, and Quick Actions have started moving into feature folders.
 - Architecture docs mention React Router and TanStack Query, but the app still uses hash routing and local `useState` fetches.
-- No automated backend or frontend tests are present.
+- Backend smoke coverage and lightweight frontend smoke checks exist; broader automated API/component/browser coverage is still missing.
 - Shared concepts from docs, such as Attachment, AuditLog, and Tag, are not implemented.
 - File storage is local but not encrypted.
 - Imported finance data exists locally, but bank import UI is not implemented.
 
 ### Missing Infrastructure
 
-- Test harness for Symfony API flows.
-- Frontend test setup.
+- Broader Symfony API test harness beyond the smoke script.
+- Broader frontend test setup beyond lightweight source-level smoke checks.
 - CI checks.
 - Audit logging for sensitive health/finance changes.
 - Background jobs via Messenger for parsing, reminders, notifications, and future integrations.
@@ -87,7 +88,7 @@ If the answer is no, do not implement it yet.
 
 ### Missing UX
 
-- Dashboard is useful, but it should evolve from information display into a Decision Center focused on "What should I do today?"
+- Dashboard now acts as a first Decision Center, but Today prioritization should keep improving as more domains generate actions.
 - Inbox exists for current Expenses, Health, Home, Reminders, and Documents signals, but does not yet cover future OCR failures, duplicates, AI suggestions, or persistent dismissals.
 - Daily Review exists as a lightweight Inbox section, but Weekly Review remains future work.
 - Better onboarding/default data setup.
@@ -299,6 +300,19 @@ Status: completed for the smallest useful version. Review items are deterministi
 - Review only uncertain transactions.
 - Route uncertain transactions and failed imports into global Inbox.
 - Acceptance: finance import no longer requires manual database/dev work.
+
+### Milestone 8.5: Daily UX Stabilization
+
+Status: completed for the smallest useful version. This milestone intentionally stayed inside existing domains and focused on daily usability before Mobile Daily Use.
+
+- Split the first frontend surfaces out of `App.tsx`: Dashboard, Inbox, Search, Timeline, and Quick Actions now live in feature folders with feature styles.
+- Reorganize Dashboard as a Decision Center with Today, Quick Capture, Review, and Recent Activity.
+- Add a persistent global quick action menu for Expense, Reminder, Document, Home Task, and Health Result.
+- Improve Inbox processing with source and severity filters.
+- Replace passive empty states with setup guidance for Home, Reminders, Documents, Search, and Timeline.
+- Reduce Timeline noise by grouping ordinary daily spending while keeping large/review-needed expenses visible.
+- Add lightweight frontend smoke checks for Dashboard, Inbox, Expenses Import, Search, Timeline, and Quick Actions.
+- Acceptance: Home OS feels more like a daily-use app and is ready to proceed into Mobile Daily Use.
 
 ### Milestone 9: Mobile Daily Use
 

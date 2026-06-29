@@ -1,5 +1,10 @@
 import { type FormEvent, type SetStateAction, useEffect, useState } from 'react'
 import './App.css'
+import { DashboardPage } from './features/dashboard/DashboardPage'
+import { InboxPage } from './features/inbox/InboxPage'
+import { QuickActionMenu } from './features/quick-actions/QuickActionMenu'
+import { SearchPage } from './features/search/SearchPage'
+import { TimelinePage } from './features/timeline/TimelinePage'
 
 type Dashboard = {
   app: string
@@ -575,6 +580,7 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [activePage, setActivePage] = useState<AppPage>('dashboard')
   const [expenseSection, setExpenseSection] = useState<ExpenseSection>('overview')
+  const [quickActionMenuOpen, setQuickActionMenuOpen] = useState(false)
   const [openHomeTaskCreator, setOpenHomeTaskCreator] = useState(false)
   const [homeTaskTitle, setHomeTaskTitle] = useState('')
   const [homeTaskArea, setHomeTaskArea] = useState('')
@@ -2189,6 +2195,24 @@ function App() {
     { label: 'Expiring soon', documents: expiringDocuments, tone: 'warning' },
     { label: 'All documents', documents, tone: 'calm' },
   ]
+  const homeTaskEmptyCopy: Record<string, string> = {
+    Overdue: 'No overdue maintenance. Add one recurring home task to keep future work visible.',
+    'Next 14 days': 'Nothing due soon. Add a filter replacement, meter reading, inspection, or seasonal task.',
+    Later: 'No later tasks yet. Use this for maintenance you want Home OS to remember for you.',
+    Completed: 'Completed tasks will appear here after you mark maintenance as done.',
+  }
+  const reminderEmptyCopy: Record<string, string> = {
+    Overdue: 'No overdue reminders. Add recurring follow-ups for things you do not want to keep in your head.',
+    Today: 'Nothing due today. Add the next important household reminder when you think of it.',
+    'Next 14 days': 'No upcoming reminders. Try adding renewals, calls, payments, or follow-ups.',
+    Later: 'No later reminders yet. Long-term reminders will wait here until they become relevant.',
+    'Done or skipped': 'Completed and skipped reminders will appear here for context.',
+  }
+  const documentEmptyCopy: Record<string, string> = {
+    Expired: 'No expired documents. Add expiry dates to IDs, insurance, contracts, and warranties to keep this calm.',
+    'Expiring soon': 'Nothing expires soon. Upload the first warranty, policy, or contract with an expiry date.',
+    'All documents': 'Upload your first document: invoice, warranty, contract, manual, tax file, or insurance policy.',
+  }
   const timelineModules = ['expenses', 'health', 'home', 'reminders', 'documents']
   const filteredTimelineItems = timelineModuleFilter
     ? timeline.items.filter((item) => item.sourceModule === timelineModuleFilter)
@@ -2202,11 +2226,6 @@ function App() {
     critical: healthReview.items.filter((item) => item.severity === 'critical'),
     warning: healthReview.items.filter((item) => item.severity === 'warning'),
     info: healthReview.items.filter((item) => item.severity === 'info'),
-  }
-  const inboxGroups = {
-    critical: inbox.items.filter((item) => item.severity === 'critical'),
-    warning: inbox.items.filter((item) => item.severity === 'warning'),
-    info: inbox.items.filter((item) => item.severity === 'info'),
   }
   const inboxSourceTotals = {
     expenses: inbox.items.filter((item) => item.sourceModule === 'expenses').length,
@@ -2551,6 +2570,55 @@ function App() {
     },
   ]
 
+  const quickActions = [
+    {
+      label: 'Expense',
+      detail: 'Capture spending now.',
+      onClick: () => {
+        setActivePage('expenses')
+        setExpenseSection('transactions')
+        setOpenExpenseCreator('expense')
+        window.location.hash = 'expenses'
+      },
+    },
+    {
+      label: 'Reminder',
+      detail: 'Add a follow-up date.',
+      onClick: () => {
+        setActivePage('reminders')
+        setOpenReminderCreator(true)
+        window.location.hash = 'reminders'
+      },
+    },
+    {
+      label: 'Document',
+      detail: 'Store file metadata.',
+      onClick: () => {
+        setActivePage('documents')
+        setOpenDocumentCreator(true)
+        window.location.hash = 'documents'
+      },
+    },
+    {
+      label: 'Home Task',
+      detail: 'Track maintenance.',
+      onClick: () => {
+        setActivePage('home')
+        setOpenHomeTaskCreator(true)
+        window.location.hash = 'home'
+      },
+    },
+    {
+      label: 'Health Result',
+      detail: 'Enter lab markers.',
+      onClick: () => {
+        setActivePage('health')
+        setOpenBloodTestCreator(true)
+        window.location.hash = 'health'
+      },
+    },
+  ]
+
   const navItems: Array<{ page: AppPage; label: string }> = [
     { page: 'dashboard', label: 'Dashboard' },
     { page: 'household', label: 'Household' },
@@ -2796,22 +2864,12 @@ function App() {
         </header>
 
         {activePage === 'dashboard' && (
-          <section className="page-stack">
-            <section className="module-grid" aria-label="Overview modules">
-              {modules.map((module) => (
-                <article className="module-card" key={module.title}>
-                  <span>{module.title}</span>
-                  <strong>{module.value}</strong>
-                  <small>{module.label}</small>
-                  <p>{module.detail}</p>
-                </article>
-              ))}
-            </section>
-
-            <section className="daily-command-grid" aria-label="Daily command center">
+          <DashboardPage
+            modules={modules}
+            quickCapture={(
               <article className="daily-command-card quick-expense-card">
                 <div>
-                  <p className="eyebrow">Fast Capture</p>
+                  <p className="eyebrow">Quick Capture</p>
                   <h2>Add expense in under 10 seconds.</h2>
                   <p>Capture the cost now. You can clean categories and reports later in review.</p>
                 </div>
@@ -2819,25 +2877,11 @@ function App() {
                 <form className="setup-form dashboard-expense-form" onSubmit={addExpense}>
                   <label>
                     What was it?
-                    <input
-                      value={expenseDescription}
-                      onChange={(event) => setExpenseDescription(event.target.value)}
-                      placeholder="Coffee, pharmacy, groceries..."
-                      required
-                    />
+                    <input value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} placeholder="Coffee, pharmacy, groceries..." required />
                   </label>
                   <label>
                     Amount
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      inputMode="decimal"
-                      value={expenseAmount}
-                      onChange={(event) => setExpenseAmount(event.target.value)}
-                      placeholder="0.00"
-                      required
-                    />
+                    <input type="number" min="0" step="0.01" inputMode="decimal" value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} placeholder="0.00" required />
                   </label>
                   <label>
                     Category
@@ -2865,65 +2909,13 @@ function App() {
                   </button>
                 </form>
               </article>
-
-              <article className="daily-command-card">
-                <div>
-                  <p className="eyebrow">Today Flow</p>
-                  <h2>Do the smallest useful next step.</h2>
-                  <p>These shortcuts keep the daily habit focused on review, bills, health, and the monthly result.</p>
-                </div>
-
-                <div className="daily-action-list">
-                  {dailyActionCards.map((item) => (
-                    <button className={`daily-action-item ${item.tone}`} type="button" onClick={item.onClick} key={item.title}>
-                      <span>
-                        <strong>{item.title}</strong>
-                        <small>{item.detail}</small>
-                      </span>
-                      <b>{item.action}</b>
-                    </button>
-                  ))}
-                </div>
-              </article>
-            </section>
-
-            <section className="focus-panel">
-              <div>
-                <p className="eyebrow">Needs Attention</p>
-                <h2>Start with the next important things.</h2>
-              </div>
-
-              <div className="attention-list">
-                {dashboard.attention.length > 0 ? (
-                  (Object.keys(attentionGroups) as Array<Dashboard['attention'][number]['severity']>).map((severity) => (
-                    attentionGroups[severity].length > 0 && (
-                      <section className="attention-group" key={severity}>
-                        <h3>{attentionGroupLabels[severity]}</h3>
-                        {attentionGroups[severity].map((item) => (
-                          <article className={`attention-item severity-${item.severity}`} key={item.id}>
-                            <div>
-                              <strong>{item.title}</strong>
-                              <span>{item.area} · {item.detail}</span>
-                            </div>
-                            <button type="button" onClick={() => openAttentionTarget(item)}>
-                              {item.actionLabel}
-                            </button>
-                          </article>
-                        ))}
-                      </section>
-                    )
-                  ))
-                ) : (
-                  <article className="attention-item">
-                    <div>
-                      <strong>Everything important looks calm.</strong>
-                      <span>Finance and health have no urgent review items right now.</span>
-                    </div>
-                  </article>
-                )}
-              </div>
-            </section>
-          </section>
+            )}
+            dailyActionCards={dailyActionCards}
+            attention={dashboard.attention}
+            attentionGroups={attentionGroups}
+            attentionGroupLabels={attentionGroupLabels}
+            openAttentionTarget={openAttentionTarget}
+          />
         )}
 
         {activePage === 'household' && (
@@ -3158,7 +3150,7 @@ function App() {
                         </article>
                       ))
                     ) : (
-                      <p className="empty-state">No {group.label.toLocaleLowerCase('en-US')} maintenance tasks.</p>
+                      <p className="empty-state">{homeTaskEmptyCopy[group.label]}</p>
                     )}
                   </div>
                 </section>
@@ -3326,7 +3318,7 @@ function App() {
                         </article>
                       ))
                     ) : (
-                      <p className="empty-state">No {group.label.toLocaleLowerCase('en-US')} reminders.</p>
+                      <p className="empty-state">{reminderEmptyCopy[group.label]}</p>
                     )}
                   </div>
                 </section>
@@ -3338,114 +3330,27 @@ function App() {
         )}
 
         {activePage === 'search' && (
-          <section className="search-panel page-card">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Global Search</p>
-                <h2>Search across Home OS.</h2>
-              </div>
-            </div>
-
-            <form className="setup-form search-form" onSubmit={searchEverything}>
-              <label>
-                Search
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="OBI, LDL, warranty, filter, invoice..."
-                  minLength={2}
-                />
-              </label>
-              <button type="submit" disabled={!household || searchQuery.trim().length < 2}>
-                Search
-              </button>
-            </form>
-
-            <div className="search-summary-grid">
-              {timelineModules.map((module) => (
-                <article key={module}>
-                  <span>{module}</span>
-                  <strong>{searchResponse.grouped[module] ?? 0}</strong>
-                </article>
-              ))}
-            </div>
-
-            <div className="search-results">
-              {searchResponse.query && searchResponse.results.length === 0 && (
-                <p className="empty-state">No results for “{searchResponse.query}”.</p>
-              )}
-
-              {!searchResponse.query && (
-                <p className="empty-state">Type at least two characters to search implemented modules.</p>
-              )}
-
-              {searchGroups.map((group) => (
-                <section className="search-result-group" key={group.module}>
-                  <div className="panel-heading-row">
-                    <div>
-                      <p className="eyebrow">{group.module}</p>
-                      <h3>{group.results.length} result{group.results.length === 1 ? '' : 's'}</h3>
-                    </div>
-                  </div>
-
-                  <div className="search-result-list">
-                    {group.results.map((result) => (
-                      <button className="search-result-item" type="button" onClick={() => openTargetUrl(result.targetUrl)} key={result.id}>
-                        <span>
-                          <strong>{result.title}</strong>
-                          <small>{result.sourceType} · {result.detail}</small>
-                        </span>
-                        <em>{result.date ?? 'open'}</em>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </section>
+          <SearchPage
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchResponse={searchResponse}
+            searchGroups={searchGroups}
+            modules={timelineModules}
+            householdReady={Boolean(household)}
+            searchEverything={searchEverything}
+            openTargetUrl={openTargetUrl}
+          />
         )}
 
         {activePage === 'timeline' && (
-          <section className="timeline-panel page-card">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">History</p>
-                <h2>Household timeline.</h2>
-              </div>
-              <select value={timelineModuleFilter} onChange={(event) => setTimelineModuleFilter(event.target.value)}>
-                <option value="">All modules</option>
-                {timelineModules.map((module) => (
-                  <option value={module} key={module}>{module}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="timeline-summary-grid">
-              {timelineModules.map((module) => (
-                <article key={module}>
-                  <span>{module}</span>
-                  <strong>{timeline.grouped[module] ?? 0}</strong>
-                </article>
-              ))}
-            </div>
-
-            <div className="timeline-list">
-              {filteredTimelineItems.length > 0 ? (
-                filteredTimelineItems.map((item) => (
-                  <button className={`timeline-item ${item.importance}`} type="button" onClick={() => openTargetUrl(item.targetUrl)} key={item.id}>
-                    <span className="timeline-dot"></span>
-                    <span>
-                      <strong>{item.title}</strong>
-                      <small>{item.sourceModule} · {item.eventType} · {item.detail}</small>
-                    </span>
-                    <em>{item.occurredAt.slice(0, 10)}</em>
-                  </button>
-                ))
-              ) : (
-                <p className="empty-state">No timeline events yet.</p>
-              )}
-            </div>
-          </section>
+          <TimelinePage
+            modules={timelineModules}
+            grouped={timeline.grouped}
+            moduleFilter={timelineModuleFilter}
+            setModuleFilter={setTimelineModuleFilter}
+            items={filteredTimelineItems}
+            openTargetUrl={openTargetUrl}
+          />
         )}
 
         {activePage === 'health-review' && (
@@ -3529,113 +3434,14 @@ function App() {
         )}
 
         {activePage === 'inbox' && (
-          <section className="inbox-panel page-card">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Daily Review</p>
-                <h2>Start with what needs a decision.</h2>
-              </div>
-              <button type="button" onClick={() => household && loadInbox(household.id)}>
-                Refresh
-              </button>
-            </div>
-
-            <div className="inbox-summary-grid">
-              <article className={inbox.summary.critical > 0 ? 'danger' : 'good'}>
-                <span>Total</span>
-                <strong>{inbox.summary.total}</strong>
-                <small>{inbox.summary.highestSeverity ?? 'calm'}</small>
-              </article>
-              <article>
-                <span>Expenses</span>
-                <strong>{inboxSourceTotals.expenses}</strong>
-              </article>
-              <article>
-                <span>Health</span>
-                <strong>{inboxSourceTotals.health}</strong>
-              </article>
-              <article>
-                <span>Home</span>
-                <strong>{inboxSourceTotals.home}</strong>
-              </article>
-              <article>
-                <span>Reminders</span>
-                <strong>{inboxSourceTotals.reminders}</strong>
-              </article>
-            </div>
-
-            <section className="daily-review-panel">
-              <div>
-                <p className="eyebrow">Today</p>
-                <h3>Daily review checklist</h3>
-                <p className="panel-copy">Dashboard actions and high-priority Inbox items are shown here first.</p>
-              </div>
-
-              <div className="daily-review-list">
-                {dailyReviewItems.length > 0 ? (
-                  dailyReviewItems.map((item) => (
-                    <article className={`daily-review-item severity-${item.severity}`} key={item.id}>
-                      <div>
-                        <strong>{item.title}</strong>
-                        <small>{item.detail}</small>
-                      </div>
-                      <button type="button" onClick={() => openInboxTarget(item)}>
-                        {item.actionLabel}
-                      </button>
-                    </article>
-                  ))
-                ) : (
-                  <p className="empty-state">Everything important looks calm for today.</p>
-                )}
-              </div>
-            </section>
-
-            <section className="inbox-items-panel">
-              <div>
-                <p className="eyebrow">Inbox</p>
-                <h3>Review queue by urgency</h3>
-                <p className="panel-copy">Items stay owned by their source module. Inbox only points you to the right workflow.</p>
-              </div>
-
-              <div className="inbox-group-list">
-                {(Object.keys(inboxGroups) as Array<InboxItem['severity']>).map((severity) => (
-                  <section className={`inbox-group severity-${severity}`} key={severity}>
-                    <div className="panel-heading-row">
-                      <div>
-                        <p className="eyebrow">{severity}</p>
-                        <h3>{inboxGroups[severity].length} item{inboxGroups[severity].length === 1 ? '' : 's'}</h3>
-                      </div>
-                    </div>
-
-                    <div className="inbox-item-list">
-                      {inboxGroups[severity].length > 0 ? (
-                        inboxGroups[severity].map((item) => (
-                          <article className={`inbox-item source-${item.sourceModule}`} key={item.id}>
-                            <span></span>
-                            <div>
-                              <strong>{item.title}</strong>
-                              <small>
-                                {item.sourceModule} · {item.sourceType.replaceAll('_', ' ')}
-                                {item.dueAt ? ` · due ${item.dueAt}` : ` · detected ${item.detectedAt.slice(0, 10)}`}
-                              </small>
-                              <p>{item.detail}</p>
-                            </div>
-                            <button type="button" onClick={() => openInboxTarget(item)}>
-                              {item.targetAction}
-                            </button>
-                          </article>
-                        ))
-                      ) : (
-                        <p className="empty-state">No {severity} inbox items.</p>
-                      )}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </section>
-
-            {setupState === 'error' && <p className="form-error">Could not load Inbox data.</p>}
-          </section>
+          <InboxPage
+            inbox={inbox}
+            inboxSourceTotals={inboxSourceTotals}
+            dailyReviewItems={dailyReviewItems}
+            setupState={setupState}
+            onRefresh={() => household && loadInbox(household.id)}
+            openInboxTarget={openInboxTarget}
+          />
         )}
 
         {activePage === 'expenses' && (
@@ -5470,7 +5276,7 @@ function App() {
                         </article>
                       ))
                     ) : (
-                      <p className="empty-state">No {group.label.toLocaleLowerCase('en-US')} documents.</p>
+                      <p className="empty-state">{documentEmptyCopy[group.label]}</p>
                     )}
                   </div>
                 </section>
@@ -5481,6 +5287,12 @@ function App() {
           </section>
         )}
       </section>
+      <QuickActionMenu
+        open={quickActionMenuOpen}
+        actions={quickActions}
+        onToggle={() => setQuickActionMenuOpen((current) => !current)}
+        onClose={() => setQuickActionMenuOpen(false)}
+      />
     </main>
   )
 }

@@ -71,18 +71,49 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
             ->getQuery()
             ->getResult();
 
-        return array_map(fn (Expense $expense): array => $this->row($expense->spentOn(), new TimelineItemView(
-            sprintf('expense-spent-%s', $expense->id()),
-            'expenses',
-            'expense',
-            $expense->id(),
-            'expense_spent',
-            $expense->description(),
-            sprintf('%s · %.2f %s', $expense->category()->name(), $expense->amountCents() / 100, $expense->currency()),
-            $expense->spentOn()->format('Y-m-d'),
-            '#expenses',
-            $expense->amountCents() >= 100000 ? 'high' : 'normal',
-        )), $expenses);
+        $dailySpending = [];
+        $events = [];
+
+        foreach ($expenses as $expense) {
+            if ($expense->amountCents() >= 100000 || $expense->reviewStatus() === 'needs_review') {
+                $events[] = $this->row($expense->spentOn(), new TimelineItemView(
+                    sprintf('expense-spent-%s', $expense->id()),
+                    'expenses',
+                    'expense',
+                    $expense->id(),
+                    'expense_spent',
+                    $expense->reviewStatus() === 'needs_review' ? sprintf('Review expense: %s', $expense->description()) : $expense->description(),
+                    sprintf('%s · %.2f %s', $expense->category()->name(), $expense->amountCents() / 100, $expense->currency()),
+                    $expense->spentOn()->format('Y-m-d'),
+                    '#expenses',
+                    $expense->amountCents() >= 100000 ? 'high' : 'normal',
+                ));
+
+                continue;
+            }
+
+            $day = $expense->spentOn()->format('Y-m-d');
+            $dailySpending[$day] ??= ['date' => $expense->spentOn(), 'count' => 0, 'amount' => 0, 'currency' => $expense->currency()];
+            $dailySpending[$day]['count']++;
+            $dailySpending[$day]['amount'] += $expense->amountCents();
+        }
+
+        foreach ($dailySpending as $day => $summary) {
+            $events[] = $this->row($summary['date'], new TimelineItemView(
+                sprintf('expense-daily-summary-%s', $day),
+                'expenses',
+                'expense_summary',
+                $day,
+                'daily_spending_summary',
+                sprintf('Daily spending: %d transaction%s', $summary['count'], $summary['count'] === 1 ? '' : 's'),
+                sprintf('%.2f %s total', $summary['amount'] / 100, $summary['currency']),
+                $day,
+                '#expenses',
+                'normal',
+            ));
+        }
+
+        return $events;
     }
 
     /**

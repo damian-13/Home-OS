@@ -1,0 +1,40 @@
+.inbox-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin: 12px 0;
+}
+
+.inbox-filter-bar label {
+  display: grid;
+  gap: 6px;
+  color: #66748a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.inbox-filter-bar select,
+.inbox-filter-bar button {
+  min-height: 42px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #132033;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  padding: 0 12px;
+}
+
+.inbox-filter-bar button {
+  background: #ffffff;
+  color: #2142d8;
+  cursor: pointer;
+}
+
+@media (max-width: 620px) {
+  .inbox-filter-bar {
+    grid-template-columns: 1fr;
+  }
+}

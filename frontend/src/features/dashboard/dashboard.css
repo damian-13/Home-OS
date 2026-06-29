@@ -1,0 +1,46 @@
+.dashboard-decision-center {
+  gap: 18px;
+}
+
+.decision-section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.today-section {
+  border-color: #bed2ff;
+  background: linear-gradient(135deg, #ffffff, #f4f8ff);
+}
+
+.today-action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.quick-capture-section {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.review-section,
+.recent-section {
+  grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.compact-modules {
+  opacity: 0.96;
+}
+
+@media (max-width: 980px) {
+  .review-section,
+  .recent-section {
+    grid-template-columns: 1fr;
+  }
+}
