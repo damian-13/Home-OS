@@ -92,4 +92,9 @@ interface ExpenseRepository
     public function reviewRulesForHousehold(string $householdId): array;
 
     public function latestUndoableReviewBatch(string $householdId): ?FinanceReviewBatch;
+
+    /**
+     * @return array{type: 'expense'|'income', id: string}|null
+     */
+    public function findImportedTransaction(string $householdId, string $importSource, string $importFingerprint): ?array;
 }

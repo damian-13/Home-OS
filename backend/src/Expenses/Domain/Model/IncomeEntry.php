@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity]
 #[ORM\Table(name: 'income_entries')]
 #[ORM\Index(name: 'IDX_INCOME_ENTRIES_HOUSEHOLD_RECEIVED_ON', columns: ['household_id', 'received_on'])]
+#[ORM\Index(name: 'IDX_INCOME_ENTRIES_IMPORT_FINGERPRINT', columns: ['household_id', 'import_source', 'import_fingerprint'])]
 class IncomeEntry
 {
     #[ORM\Id]
@@ -50,7 +51,13 @@ class IncomeEntry
     #[ORM\Column(type: 'string', length: 160, nullable: true)]
     private ?string $reviewReason = null;
 
-    public function __construct(string $id, string $householdId, ?string $sourceId, ?string $memberId, string $description, int $amountCents, string $currency, DateTimeImmutable $receivedOn)
+    #[ORM\Column(type: 'string', length: 80, nullable: true)]
+    private ?string $importSource = null;
+
+    #[ORM\Column(type: 'string', length: 64, nullable: true)]
+    private ?string $importFingerprint = null;
+
+    public function __construct(string $id, string $householdId, ?string $sourceId, ?string $memberId, string $description, int $amountCents, string $currency, DateTimeImmutable $receivedOn, ?string $importSource = null, ?string $importFingerprint = null)
     {
         $this->id = $id;
         $this->householdId = $householdId;
@@ -60,6 +67,8 @@ class IncomeEntry
         $this->amountCents = $amountCents;
         $this->currency = $currency;
         $this->receivedOn = $receivedOn;
+        $this->importSource = $importSource;
+        $this->importFingerprint = $importFingerprint;
         $this->createdAt = new DateTimeImmutable();
     }
 
@@ -103,4 +112,6 @@ class IncomeEntry
     public function incomeKind(): string { return $this->incomeKind; }
     public function reviewStatus(): string { return $this->reviewStatus; }
     public function reviewReason(): ?string { return $this->reviewReason; }
+    public function importSource(): ?string { return $this->importSource; }
+    public function importFingerprint(): ?string { return $this->importFingerprint; }
 }

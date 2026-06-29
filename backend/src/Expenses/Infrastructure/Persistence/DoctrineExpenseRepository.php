@@ -326,6 +326,47 @@ final readonly class DoctrineExpenseRepository implements ExpenseRepository
             ->getOneOrNullResult();
     }
 
+    public function findImportedTransaction(string $householdId, string $importSource, string $importFingerprint): ?array
+    {
+        $expense = $this->entityManager->getRepository(Expense::class)
+            ->createQueryBuilder('expense')
+            ->select('expense.id')
+            ->andWhere('expense.householdId = :householdId')
+            ->andWhere('expense.deletedAt IS NULL')
+            ->andWhere('expense.importSource = :importSource')
+            ->andWhere('expense.importFingerprint = :importFingerprint')
+            ->setParameter('householdId', $householdId)
+            ->setParameter('importSource', $importSource)
+            ->setParameter('importFingerprint', $importFingerprint)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (is_array($expense) && isset($expense['id'])) {
+            return ['type' => 'expense', 'id' => (string) $expense['id']];
+        }
+
+        $income = $this->entityManager->getRepository(IncomeEntry::class)
+            ->createQueryBuilder('entry')
+            ->select('entry.id')
+            ->andWhere('entry.householdId = :householdId')
+            ->andWhere('entry.deletedAt IS NULL')
+            ->andWhere('entry.importSource = :importSource')
+            ->andWhere('entry.importFingerprint = :importFingerprint')
+            ->setParameter('householdId', $householdId)
+            ->setParameter('importSource', $importSource)
+            ->setParameter('importFingerprint', $importFingerprint)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (is_array($income) && isset($income['id'])) {
+            return ['type' => 'income', 'id' => (string) $income['id']];
+        }
+
+        return null;
+    }
+
     private function applyOptionalFilters(\Doctrine\ORM\QueryBuilder $builder, ?string $categoryId, ?string $paidByMemberId): void
     {
         if ($categoryId) {

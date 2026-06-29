@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity]
 #[ORM\Table(name: 'expenses')]
 #[ORM\Index(name: 'IDX_EXPENSES_HOUSEHOLD_SPENT_ON', columns: ['household_id', 'spent_on'])]
+#[ORM\Index(name: 'IDX_EXPENSES_IMPORT_FINGERPRINT', columns: ['household_id', 'import_source', 'import_fingerprint'])]
 class Expense
 {
     #[ORM\Id]
@@ -48,6 +49,12 @@ class Expense
     #[ORM\Column(type: 'string', length: 160, nullable: true)]
     private ?string $reviewReason = null;
 
+    #[ORM\Column(type: 'string', length: 80, nullable: true)]
+    private ?string $importSource = null;
+
+    #[ORM\Column(type: 'string', length: 64, nullable: true)]
+    private ?string $importFingerprint = null;
+
     public function __construct(
         string $id,
         string $householdId,
@@ -57,6 +64,8 @@ class Expense
         string $currency,
         DateTimeImmutable $spentOn,
         ?string $paidByMemberId,
+        ?string $importSource = null,
+        ?string $importFingerprint = null,
     ) {
         $this->id = $id;
         $this->householdId = $householdId;
@@ -66,6 +75,8 @@ class Expense
         $this->currency = $currency;
         $this->spentOn = $spentOn;
         $this->paidByMemberId = $paidByMemberId;
+        $this->importSource = $importSource;
+        $this->importFingerprint = $importFingerprint;
         $this->createdAt = new DateTimeImmutable();
     }
 
@@ -146,5 +157,15 @@ class Expense
     public function reviewReason(): ?string
     {
         return $this->reviewReason;
+    }
+
+    public function importSource(): ?string
+    {
+        return $this->importSource;
+    }
+
+    public function importFingerprint(): ?string
+    {
+        return $this->importFingerprint;
     }
 }

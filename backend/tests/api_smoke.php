@@ -283,6 +283,106 @@ assertTrue(count($expenses['body']['categories']) > 0, 'Expense overview should 
 assertTrue(is_array($expenses['body']['activeFilters'] ?? null), 'Expense overview should include active filters.');
 
 $categoryId = (string) $expenses['body']['categories'][0]['id'];
+
+$financeImportSource = 'smoke-bank-'.$runId;
+$financeImportDate = (new DateTimeImmutable())->format('Y-m-d');
+$financeImportPath = sys_get_temp_dir().'/home-os-finance-import-'.$runId.'.csv';
+$overlapImportPath = sys_get_temp_dir().'/home-os-finance-import-overlap-'.$runId.'.csv';
+$firstImportDescription = 'Smoke duplicate safe coffee '.$runId;
+$overlapImportDescription = 'Smoke overlapping safe shop '.$runId;
+
+file_put_contents($financeImportPath, implode("\n", [
+    'transaction_id,date,amount,currency,description,counterparty,account',
+    sprintf('tx-%s-1,%s,-12.34,PLN,%s,Smoke Cafe,PL123', $runId, $financeImportDate, $firstImportDescription),
+]));
+file_put_contents($overlapImportPath, implode("\n", [
+    'transaction_id,date,amount,currency,description,counterparty,account',
+    sprintf('tx-%s-1,%s,-12.34,PLN,%s,Smoke Cafe,PL123', $runId, $financeImportDate, $firstImportDescription),
+    sprintf('tx-%s-2,%s,-45.67,PLN,%s,Smoke Market,PL123', $runId, $financeImportDate, $overlapImportDescription),
+]));
+
+$firstImportPreview = apiMultipart(sprintf('/api/households/%s/expenses/import/preview', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import.csv',
+    'path' => $financeImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($firstImportPreview['status'] === 200, 'Finance import preview should return 200.');
+assertTrue(($firstImportPreview['body']['summary']['newRows'] ?? null) === 1, 'First finance import preview should show one new row.');
+assertTrue(($firstImportPreview['body']['summary']['duplicateCandidates'] ?? null) === 0, 'First finance import preview should not show duplicates.');
+
+$firstImportAccept = apiMultipart(sprintf('/api/households/%s/expenses/import/accept', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import.csv',
+    'path' => $financeImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($firstImportAccept['status'] === 201, 'Finance import accept should return 201.');
+assertTrue(($firstImportAccept['body']['summary']['createdRows'] ?? null) === 1, 'First finance import should create one row.');
+assertTrue(($firstImportAccept['body']['summary']['skippedDuplicates'] ?? null) === 0, 'First finance import should not skip rows.');
+
+$secondImportPreview = apiMultipart(sprintf('/api/households/%s/expenses/import/preview', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import-again.csv',
+    'path' => $financeImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($secondImportPreview['status'] === 200, 'Repeated finance import preview should return 200.');
+assertTrue(($secondImportPreview['body']['summary']['newRows'] ?? null) === 0, 'Repeated finance import preview should show no new rows.');
+assertTrue(($secondImportPreview['body']['summary']['duplicateCandidates'] ?? null) === 1, 'Repeated finance import preview should detect duplicate row.');
+assertTrue(($secondImportPreview['body']['rows'][0]['status'] ?? null) === 'duplicate_candidate', 'Repeated finance import row should be marked duplicate candidate.');
+
+$secondImportAccept = apiMultipart(sprintf('/api/households/%s/expenses/import/accept', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import-again.csv',
+    'path' => $financeImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($secondImportAccept['status'] === 201, 'Repeated finance import accept should return 201.');
+assertTrue(($secondImportAccept['body']['summary']['createdRows'] ?? null) === 0, 'Repeated finance import should not create a duplicate.');
+assertTrue(($secondImportAccept['body']['summary']['skippedDuplicates'] ?? null) === 1, 'Repeated finance import should skip the duplicate.');
+
+$overlapImportPreview = apiMultipart(sprintf('/api/households/%s/expenses/import/preview', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import-overlap.csv',
+    'path' => $overlapImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($overlapImportPreview['status'] === 200, 'Overlapping finance import preview should return 200.');
+assertTrue(($overlapImportPreview['body']['summary']['newRows'] ?? null) === 1, 'Overlapping finance import preview should show one new row.');
+assertTrue(($overlapImportPreview['body']['summary']['duplicateCandidates'] ?? null) === 1, 'Overlapping finance import preview should show one duplicate row.');
+
+$overlapImportAccept = apiMultipart(sprintf('/api/households/%s/expenses/import/accept', rawurlencode($householdId)), [
+    'source' => $financeImportSource,
+], [
+    'name' => 'finance-import-overlap.csv',
+    'path' => $overlapImportPath,
+    'mime' => 'text/csv',
+]);
+
+assertTrue($overlapImportAccept['status'] === 201, 'Overlapping finance import accept should return 201.');
+assertTrue(($overlapImportAccept['body']['summary']['createdRows'] ?? null) === 1, 'Overlapping finance import should create only the new row.');
+assertTrue(($overlapImportAccept['body']['summary']['skippedDuplicates'] ?? null) === 1, 'Overlapping finance import should skip the already imported row.');
+
+$expensesAfterImport = apiRequest('GET', sprintf('/api/households/%s/expenses/overview?month=%s', rawurlencode($householdId), rawurlencode((new DateTimeImmutable())->format('Y-m'))));
+$importedDescriptions = array_map(
+    static fn (array $item): string => (string) ($item['description'] ?? ''),
+    $expensesAfterImport['body']['latestExpenses'] ?? [],
+);
+
+assertTrue(count(array_filter($importedDescriptions, static fn (string $description): bool => str_contains($description, $firstImportDescription))) === 1, 'Duplicate finance import should leave only one matching expense.');
+assertTrue(count(array_filter($importedDescriptions, static fn (string $description): bool => str_contains($description, $overlapImportDescription))) === 1, 'Overlapping finance import should create the new transaction once.');
+
 $reviewExpense = apiRequest('POST', sprintf('/api/households/%s/expenses', rawurlencode($householdId)), [
     'categoryId' => $categoryId,
     'description' => 'Smoke inbox uncertain expense',

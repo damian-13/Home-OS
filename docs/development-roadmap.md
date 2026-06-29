@@ -293,6 +293,7 @@ Status: completed for the smallest useful version. Review items are deterministi
 
 ### Milestone 8: Finance Import Productization
 
+- Status: duplicate-safe CSV import foundation exists. Imported expenses/income store deterministic source fingerprints, preview detects already imported rows across expense and income records, and accept skips confident duplicates instead of creating repeated rows. This first slice uses indexed application-level deduplication because imported money records currently live in separate expense/income tables; a shared database uniqueness model can be introduced later if imports become a dedicated ledger. Full bank import UX, saved rule auto-apply, and failed import handling remain in scope.
 - Add import UI for bank file upload/preview.
 - Auto-apply saved finance rules.
 - Review only uncertain transactions.

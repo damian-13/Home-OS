@@ -178,6 +178,41 @@ type ExpenseOverview = {
   }
 }
 
+type FinanceImportPreview = {
+  summary: {
+    totalRows: number
+    newRows: number
+    duplicateCandidates: number
+    autoSkippedDuplicates: number
+  }
+  rows: Array<{
+    rowNumber: number
+    direction: 'expense' | 'income'
+    status: 'new' | 'duplicate_candidate'
+    duplicate: boolean
+    confidence: 'high' | null
+    recommendedAction: 'review' | 'skip'
+    matchedRecord: { type: 'expense' | 'income'; id: string } | null
+    description: string
+    amount: number
+    currency: string
+    transactionDate: string
+    bookingDate: string | null
+    importSource: string
+    fingerprintStrength: 'stable_transaction_id' | 'normalized_transaction_data'
+  }>
+}
+
+type FinanceImportAccept = {
+  summary: {
+    totalRows: number
+    createdRows: number
+    skippedDuplicates: number
+  }
+  created: Array<{ type: 'expense' | 'income'; id: string }>
+  skipped: FinanceImportPreview['rows']
+}
+
 type BloodTestMarker = {
   id: string
   bloodTestId: string
@@ -573,6 +608,10 @@ function App() {
   const [expenseFilterMonth, setExpenseFilterMonth] = useState(currentMonth)
   const [expenseFilterCategoryId, setExpenseFilterCategoryId] = useState('')
   const [expenseFilterPaidByMemberId, setExpenseFilterPaidByMemberId] = useState('')
+  const [financeImportFile, setFinanceImportFile] = useState<File | null>(null)
+  const [financeImportSource, setFinanceImportSource] = useState('bank-csv')
+  const [financeImportPreview, setFinanceImportPreview] = useState<FinanceImportPreview | null>(null)
+  const [financeImportResult, setFinanceImportResult] = useState<FinanceImportAccept | null>(null)
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
   const [editExpenseDescription, setEditExpenseDescription] = useState('')
   const [editExpenseAmount, setEditExpenseAmount] = useState('')
@@ -1312,6 +1351,48 @@ function App() {
       setExpenseAmount('')
       setExpenseSpentOn(today)
       setOpenExpenseCreator(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const previewFinanceImport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!household || !financeImportFile) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      const body = new FormData()
+      body.append('source', financeImportSource)
+      body.append('file', financeImportFile)
+      const preview = await apiFormData<FinanceImportPreview>(`/api/households/${household.id}/expenses/import/preview`, body)
+      setFinanceImportPreview(preview)
+      setFinanceImportResult(null)
+      setSetupState('idle')
+    } catch {
+      setSetupState('error')
+    }
+  }
+
+  const acceptFinanceImport = async () => {
+    if (!household || !financeImportFile) {
+      return
+    }
+
+    setSetupState('saving')
+
+    try {
+      const body = new FormData()
+      body.append('source', financeImportSource)
+      body.append('file', financeImportFile)
+      const result = await apiFormData<FinanceImportAccept>(`/api/households/${household.id}/expenses/import/accept`, body)
+      setFinanceImportResult(result)
+      await refreshExpenseAndDashboard(household.id)
       setSetupState('idle')
     } catch {
       setSetupState('error')
@@ -3845,6 +3926,89 @@ function App() {
                   <strong>{pln(financeReview?.excludedIncomeTotal ?? 0)}</strong>
                 </article>
               </div>
+
+              <section className="finance-import-panel" aria-label="Bank file import">
+                <div className="panel-heading-row">
+                  <div>
+                    <p className="eyebrow">Import Safety</p>
+                    <h4>Preview bank CSV before creating rows</h4>
+                  </div>
+                  {financeImportPreview && (
+                    <span className="duplicate-pill">
+                      {financeImportPreview.summary.duplicateCandidates} duplicate{financeImportPreview.summary.duplicateCandidates === 1 ? '' : 's'} auto-skip
+                    </span>
+                  )}
+                </div>
+                <form className="finance-import-form" onSubmit={previewFinanceImport}>
+                  <label>
+                    Source
+                    <input
+                      value={financeImportSource}
+                      onChange={(event) => setFinanceImportSource(event.target.value)}
+                      placeholder="bank-csv"
+                    />
+                  </label>
+                  <label>
+                    CSV file
+                    <input
+                      type="file"
+                      accept=".csv,text/csv,text/plain"
+                      onChange={(event) => {
+                        setFinanceImportFile(event.target.files?.[0] ?? null)
+                        setFinanceImportPreview(null)
+                        setFinanceImportResult(null)
+                      }}
+                    />
+                  </label>
+                  <button type="submit" disabled={!financeImportFile || setupState === 'saving'}>
+                    Preview import
+                  </button>
+                </form>
+
+                {financeImportPreview && (
+                  <div className="finance-import-preview">
+                    <div className="review-stats">
+                      <article>
+                        <span>Total rows</span>
+                        <strong>{financeImportPreview.summary.totalRows}</strong>
+                      </article>
+                      <article>
+                        <span>Will create</span>
+                        <strong>{financeImportPreview.summary.newRows}</strong>
+                      </article>
+                      <article>
+                        <span>Will skip</span>
+                        <strong>{financeImportPreview.summary.duplicateCandidates}</strong>
+                      </article>
+                    </div>
+                    <div className="finance-import-row-list">
+                      {financeImportPreview.rows.slice(0, 8).map((row) => (
+                        <article className={row.duplicate ? 'duplicate' : 'new'} key={`${row.rowNumber}-${row.description}`}>
+                          <div>
+                            <strong>{row.description}</strong>
+                            <small>{row.transactionDate} · {row.direction} · {pln(row.amount)} · {row.fingerprintStrength === 'stable_transaction_id' ? 'bank id' : 'fingerprint'}</small>
+                          </div>
+                          <span>{row.duplicate ? 'Duplicate, skipped' : 'New, needs review'}</span>
+                        </article>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="primary-inline-action"
+                      onClick={acceptFinanceImport}
+                      disabled={setupState === 'saving' || financeImportPreview.summary.newRows === 0}
+                    >
+                      Create {financeImportPreview.summary.newRows} new row{financeImportPreview.summary.newRows === 1 ? '' : 's'}
+                    </button>
+                  </div>
+                )}
+
+                {financeImportResult && (
+                  <p className="import-result-note">
+                    Created {financeImportResult.summary.createdRows} row{financeImportResult.summary.createdRows === 1 ? '' : 's'} and skipped {financeImportResult.summary.skippedDuplicates} duplicate{financeImportResult.summary.skippedDuplicates === 1 ? '' : 's'}.
+                  </p>
+                )}
+              </section>
 
               <section className="bulk-rule-panel" aria-label="Suggested bulk review rules">
                 <div className="panel-heading-row">
