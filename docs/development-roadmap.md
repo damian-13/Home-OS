@@ -52,6 +52,7 @@ If the answer is no, do not implement it yet.
 - Search + Timeline Foundation: read-only global search across implemented modules and deterministic household activity timeline.
 - Health Review Center: deterministic health data-quality queue for out-of-range, unknown, suspicious, duplicate-looking, and stale lab data.
 - Daily UX Stabilization: Dashboard Decision Center structure, global quick actions, Inbox filters, setup-focused empty states, grouped timeline spending, and lightweight frontend smoke coverage.
+- Mobile Daily Use: phone-first bottom navigation, mobile quick action sheet, denser Dashboard/Inbox mobile layouts, mobile form spacing, and mobile smoke coverage.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
@@ -316,8 +317,13 @@ Status: completed for the smallest useful version. This milestone intentionally 
 
 ### Milestone 9: Mobile Daily Use
 
+Status: completed for the smallest useful version. This milestone focused on daily web usage from a phone, not native app/PWA behavior.
+
 - Add mobile-friendly navigation and quick action layout.
 - Prioritize Dashboard, quick expense, reminders, health review.
+- Improve phone form spacing and sticky save/action placement for daily capture flows.
+- Verify Dashboard, Inbox, Expenses, Home Tasks, Reminders, Health Review, and Quick Actions at a phone viewport.
+- Add mobile-focused frontend smoke checks.
 - Acceptance: user can complete daily capture/review comfortably on phone.
 
 ### Milestone 10: Reliability & Privacy

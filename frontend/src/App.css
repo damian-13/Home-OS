@@ -4147,6 +4147,140 @@ h3 {
 }
 
 @media (max-width: 620px) {
+  .app-shell {
+    padding-bottom: 92px;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 24;
+    padding: 12px 14px;
+    background: rgba(18, 29, 67, 0.92);
+    backdrop-filter: blur(12px);
+  }
+
+  .sidebar .nav-list {
+    display: none;
+  }
+
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .workspace {
+    gap: 14px;
+    padding: 14px 12px 112px;
+  }
+
+  .page-hero {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .page-hero-copy {
+    gap: 6px;
+  }
+
+  .page-hero-copy > p:last-child {
+    font-size: 14px;
+  }
+
+  .page-actions {
+    display: none;
+  }
+
+  h1 {
+    font-size: 28px;
+    line-height: 1.06;
+  }
+
+  h2 {
+    font-size: 22px;
+    line-height: 1.12;
+  }
+
+  h3 {
+    font-size: 18px;
+  }
+
+  .page-card,
+  .decision-section,
+  .daily-command-card,
+  .home-task-create-panel,
+  .home-task-group,
+  .reminder-create-panel,
+  .reminder-group,
+  .expense-create-panel,
+  .transaction-table-panel,
+  .transaction-income-panel,
+  .health-review-group,
+  .inbox-items-panel,
+  .daily-review-panel {
+    padding: 14px;
+  }
+
+  .section-heading {
+    gap: 12px;
+  }
+
+  .section-heading > button,
+  .expense-create-actions button,
+  .row-actions button,
+  .setup-form button,
+  .inline-edit-actions button,
+  .daily-action-item,
+  .attention-item button,
+  .inbox-item button,
+  .daily-review-item button,
+  .health-review-item button {
+    min-height: 48px;
+  }
+
+  .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .row-actions button:first-child:last-child,
+  .row-actions button:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .setup-form {
+    gap: 12px;
+  }
+
+  .setup-form label {
+    gap: 6px;
+  }
+
+  .setup-form input,
+  .setup-form select {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .setup-form > button,
+  .inline-edit-actions {
+    position: sticky;
+    bottom: 88px;
+    z-index: 12;
+    box-shadow: 0 12px 28px rgba(15, 25, 48, 0.18);
+  }
+
+  .inline-edit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 8px;
+    border: 1px solid #d8e0ee;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
   .auth-page {
     padding: 14px;
   }

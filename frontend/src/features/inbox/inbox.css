@@ -37,4 +37,20 @@
   .inbox-filter-bar {
     grid-template-columns: 1fr;
   }
+
+  .inbox-filter-bar select,
+  .inbox-filter-bar button {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .inbox-item,
+  .daily-review-item {
+    gap: 12px;
+  }
+
+  .inbox-item button,
+  .daily-review-item button {
+    width: 100%;
+  }
 }

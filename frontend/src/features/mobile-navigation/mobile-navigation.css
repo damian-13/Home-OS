@@ -1,0 +1,54 @@
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .mobile-bottom-nav {
+    position: fixed;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 10px;
+    z-index: 35;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid rgba(216, 224, 238, 0.94);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 50px rgba(15, 25, 48, 0.24);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-bottom-nav button {
+    display: grid;
+    min-width: 0;
+    min-height: 50px;
+    place-items: center;
+    gap: 2px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #66748a;
+    cursor: pointer;
+    font: inherit;
+    padding: 5px 2px;
+  }
+
+  .mobile-bottom-nav button.active {
+    background: #eef4ff;
+    color: #2142d8;
+  }
+
+  .mobile-bottom-nav span {
+    font-size: 12px;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .mobile-bottom-nav small {
+    font-size: 10px;
+    font-weight: 850;
+    line-height: 1;
+  }
+}

@@ -44,3 +44,34 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 620px) {
+  .dashboard-decision-center {
+    gap: 12px;
+  }
+
+  .today-section {
+    padding: 16px;
+  }
+
+  .today-action-list {
+    gap: 8px;
+  }
+
+  .today-action-list .attention-item,
+  .all-attention-section .attention-item {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .today-action-list .attention-item button,
+  .all-attention-section .attention-item button {
+    width: 100%;
+  }
+
+  .review-section,
+  .recent-section,
+  .module-grid.compact-modules {
+    gap: 12px;
+  }
+}

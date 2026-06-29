@@ -70,6 +70,23 @@
 @media (max-width: 620px) {
   .quick-action-menu {
     right: 16px;
-    bottom: 16px;
+    bottom: 92px;
+    left: 16px;
+    justify-items: end;
+  }
+
+  .quick-action-list {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .quick-action-list button {
+    min-height: 58px;
+    padding: 12px 14px;
+  }
+
+  .quick-action-fab {
+    min-width: 72px;
+    min-height: 54px;
   }
 }

@@ -2,9 +2,11 @@ import { type FormEvent, type SetStateAction, useEffect, useState } from 'react'
 import './App.css'
 import { DashboardPage } from './features/dashboard/DashboardPage'
 import { InboxPage } from './features/inbox/InboxPage'
+import { MobileNavigation } from './features/mobile-navigation/MobileNavigation'
 import { QuickActionMenu } from './features/quick-actions/QuickActionMenu'
 import { SearchPage } from './features/search/SearchPage'
 import { TimelinePage } from './features/timeline/TimelinePage'
+import type { AppPage } from './shared/navigation'
 
 type Dashboard = {
   app: string
@@ -463,7 +465,6 @@ type TimelineResponse = {
   grouped: Record<string, number>
 }
 
-type AppPage = 'dashboard' | 'household' | 'home' | 'reminders' | 'inbox' | 'search' | 'timeline' | 'expenses' | 'health' | 'health-review' | 'documents'
 type ExpenseSection = 'overview' | 'monthly-review' | 'analytics' | 'transactions' | 'import-review' | 'budgets' | 'bills'
 
 const fallbackDashboard: Dashboard = {
@@ -2632,6 +2633,20 @@ function App() {
     { page: 'health-review', label: 'Health Review' },
     { page: 'documents', label: 'Documents' },
   ]
+  const mobileNavItems: Array<{ page: AppPage; label: string; shortLabel: string }> = [
+    { page: 'dashboard', label: 'Today', shortLabel: 'Now' },
+    { page: 'inbox', label: 'Inbox', shortLabel: 'In' },
+    { page: 'expenses', label: 'Money', shortLabel: 'PLN' },
+    { page: 'home', label: 'Home', shortLabel: 'Fix' },
+    { page: 'reminders', label: 'Remind', shortLabel: 'Due' },
+    { page: 'health-review', label: 'Health', shortLabel: 'Lab' },
+  ]
+
+  const navigateToPage = (page: AppPage) => {
+    setActivePage(page)
+    setQuickActionMenuOpen(false)
+    window.history.pushState(null, '', `#${page}`)
+  }
 
   const expenseSections: Array<{ section: ExpenseSection; label: string; meta: string }> = [
     { section: 'overview', label: 'Overview', meta: 'Monthly status' },
@@ -2837,7 +2852,10 @@ function App() {
               href={`#${item.page}`}
               className={activePage === item.page ? 'active' : ''}
               key={item.page}
-              onClick={() => setActivePage(item.page)}
+              onClick={(event) => {
+                event.preventDefault()
+                navigateToPage(item.page)
+              }}
             >
               {item.label}
             </a>
@@ -5293,6 +5311,7 @@ function App() {
         onToggle={() => setQuickActionMenuOpen((current) => !current)}
         onClose={() => setQuickActionMenuOpen(false)}
       />
+      <MobileNavigation items={mobileNavItems} activePage={activePage} onNavigate={navigateToPage} />
     </main>
   )
 }
