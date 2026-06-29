@@ -5,6 +5,7 @@ namespace App\Documents\UI\Http;
 use App\Documents\Application\Command\AddDocumentCommand;
 use App\Documents\Domain\Model\Document;
 use App\Identity\Application\Security\HouseholdAccess;
+use App\Shared\Application\Audit\AuditLogger;
 use App\Shared\Application\Command\CommandBus;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -18,13 +19,14 @@ final readonly class AddDocumentController
         private HouseholdAccess $householdAccess,
         private CommandBus $commandBus,
         private string $documentsDir,
+        private AuditLogger $audit,
     ) {
     }
 
     #[Route('/api/households/{householdId}/documents', name: 'api_documents_add', methods: ['POST'])]
     public function __invoke(string $householdId, Request $request): JsonResponse
     {
-        $this->householdAccess->assertCanAccess($householdId);
+        $actor = $this->householdAccess->assertCanAccess($householdId);
         $file = $request->files->get('file');
         $stored = ['originalName' => null, 'storedName' => null, 'mimeType' => null, 'size' => null];
 
@@ -47,6 +49,11 @@ final readonly class AddDocumentController
                 $stored['mimeType'],
                 $stored['size'],
             ));
+            $this->audit->record($householdId, $actor, 'document', $id, 'create', 'Document created.', [
+                'title' => (string) $request->request->get('title', ''),
+                'type' => (string) $request->request->get('type', Document::TYPE_OTHER),
+                'hasFile' => $stored['storedName'] !== null,
+            ]);
         } catch (InvalidArgumentException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }

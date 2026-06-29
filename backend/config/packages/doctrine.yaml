@@ -56,6 +56,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Reminders/Domain/Model'
                 prefix: 'App\Reminders\Domain\Model'
                 alias: Reminders
+            Shared:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Shared/Domain/Model'
+                prefix: 'App\Shared\Domain\Model'
+                alias: Shared
         controller_resolver:
             auto_mapping: false
 

@@ -5,6 +5,7 @@ namespace App\Documents\UI\Http;
 use App\Documents\Application\Command\UpdateDocumentCommand;
 use App\Documents\Domain\Model\Document;
 use App\Identity\Application\Security\HouseholdAccess;
+use App\Shared\Application\Audit\AuditLogger;
 use App\Shared\Application\Command\CommandBus;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,13 +16,14 @@ final readonly class UpdateDocumentController
     public function __construct(
         private HouseholdAccess $householdAccess,
         private CommandBus $commandBus,
+        private AuditLogger $audit,
     ) {
     }
 
     #[Route('/api/households/{householdId}/documents/{documentId}', name: 'api_documents_update', methods: ['PATCH'])]
     public function __invoke(string $householdId, string $documentId, Request $request): JsonResponse
     {
-        $this->householdAccess->assertCanAccess($householdId);
+        $actor = $this->householdAccess->assertCanAccess($householdId);
         $payload = json_decode($request->getContent(), true, flags: JSON_THROW_ON_ERROR);
 
         $this->commandBus->dispatch(new UpdateDocumentCommand(
@@ -35,6 +37,10 @@ final readonly class UpdateDocumentController
             isset($payload['tags']) && trim((string) $payload['tags']) !== '' ? (string) $payload['tags'] : null,
             isset($payload['note']) && trim((string) $payload['note']) !== '' ? (string) $payload['note'] : null,
         ));
+        $this->audit->record($householdId, $actor, 'document', $documentId, 'update', 'Document metadata updated.', [
+            'title' => (string) ($payload['title'] ?? ''),
+            'type' => (string) ($payload['type'] ?? Document::TYPE_OTHER),
+        ]);
 
         return new JsonResponse(['status' => 'updated']);
     }

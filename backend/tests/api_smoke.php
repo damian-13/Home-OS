@@ -37,6 +37,7 @@ register_shutdown_function(static function () use (&$createdHouseholdId, &$creat
         $pdo->beginTransaction();
 
         foreach ([
+            'audit_logs',
             'finance_review_batches',
             'finance_review_rules',
             'recurring_bill_payments',
@@ -234,6 +235,22 @@ function apiMultipart(string $path, array $fields, ?array $file = null): array
         'raw' => $raw,
         'headers' => $responseHeaders,
     ];
+}
+
+/**
+ * @param list<string> $headers
+ */
+function hasHeader(array $headers, string $name, ?string $contains = null): bool
+{
+    foreach ($headers as $header) {
+        if (!str_starts_with(strtolower($header), strtolower($name).':')) {
+            continue;
+        }
+
+        return $contains === null || str_contains(strtolower($header), strtolower($contains));
+    }
+
+    return false;
 }
 
 $register = apiRequest('POST', '/api/auth/register', [
@@ -774,6 +791,26 @@ $uploadedDocument = apiMultipart(sprintf('/api/households/%s/documents', rawurle
 assertTrue($uploadedDocument['status'] === 201, sprintf('Uploaded document create should return 201, got %d: %s', $uploadedDocument['status'], $uploadedDocument['raw']));
 assertTrue(is_string($uploadedDocument['body']['id'] ?? null), 'Uploaded document create should return id.');
 
+$unsafeDocumentPath = sys_get_temp_dir().'/home-os-smoke-unsafe.php';
+file_put_contents($unsafeDocumentPath, '<?php echo "unsafe";');
+
+$unsafeDocument = apiMultipart(sprintf('/api/households/%s/documents', rawurlencode($householdId)), [
+    'title' => 'Smoke unsafe upload',
+    'type' => 'other',
+    'ownerMemberId' => '',
+    'issuedAt' => '',
+    'expiresAt' => '',
+    'tags' => 'unsafe',
+    'note' => 'Should be rejected',
+], [
+    'name' => '../unsafe.php',
+    'path' => $unsafeDocumentPath,
+    'mime' => 'application/x-php',
+]);
+
+assertTrue($unsafeDocument['status'] === 400, 'Unsafe document upload should be rejected.');
+assertTrue(is_string($unsafeDocument['body']['error'] ?? null), 'Unsafe document upload should return a useful error.');
+
 $documentsList = apiRequest('GET', sprintf('/api/households/%s/documents', rawurlencode($householdId)));
 
 assertTrue($documentsList['status'] === 200, 'Document list should return 200.');
@@ -794,6 +831,9 @@ $documentDownload = apiRequest('GET', (string) $documentsById[(string) $uploaded
 
 assertTrue($documentDownload['status'] === 200, 'Document download should return 200.');
 assertTrue(strlen($documentDownload['raw']) > 0, 'Document download should return stored file content.');
+assertTrue(hasHeader($documentDownload['headers'], 'Content-Disposition', 'attachment'), 'Document download should use attachment disposition.');
+assertTrue(hasHeader($documentDownload['headers'], 'X-Content-Type-Options', 'nosniff'), 'Document download should prevent MIME sniffing.');
+assertTrue(hasHeader($documentDownload['headers'], 'Cache-Control', 'no-store'), 'Document download should avoid shared/browser caching.');
 
 $updateDocument = apiRequest('PATCH', sprintf(
     '/api/households/%s/documents/%s',
@@ -1001,5 +1041,36 @@ assertTrue(is_array($health['body']['latestBloodTests'] ?? null), 'Health overvi
 assertTrue(is_array($health['body']['outOfRangeMarkers'] ?? null), 'Health overview should include out-of-range marker list.');
 assertTrue(is_array($health['body']['markerNames'] ?? null), 'Health overview should include marker names list.');
 assertTrue(is_array($health['body']['markerCatalog'] ?? null), 'Health overview should include marker catalog.');
+
+$export = apiRequest('GET', sprintf('/api/households/%s/export', rawurlencode($householdId)));
+
+assertTrue($export['status'] === 200, 'Household export should return 200.');
+assertTrue(is_array($export['body']), 'Household export should return JSON.');
+assertTrue(($export['body']['format'] ?? null) === 'home-os-household-export-v1', 'Household export should include format version.');
+assertTrue(($export['body']['household']['id'] ?? null) === $householdId, 'Household export should include the current household.');
+assertTrue(is_array($export['body']['members'] ?? null) && count($export['body']['members']) >= 1, 'Household export should include household members.');
+assertTrue(is_array($export['body']['expenses']['items'] ?? null) && count($export['body']['expenses']['items']) >= 1, 'Household export should include expenses.');
+assertTrue(is_array($export['body']['health']['bloodTests'] ?? null) && count($export['body']['health']['bloodTests']) >= 1, 'Household export should include health records.');
+assertTrue(is_array($export['body']['homeMaintenanceTasks'] ?? null) && count($export['body']['homeMaintenanceTasks']) >= 1, 'Household export should include home tasks.');
+assertTrue(is_array($export['body']['reminders'] ?? null) && count($export['body']['reminders']) >= 1, 'Household export should include reminders.');
+assertTrue(is_array($export['body']['documents'] ?? null) && count($export['body']['documents']) >= 1, 'Household export should include document metadata.');
+assertTrue(($export['body']['attachmentsIncluded'] ?? true) === false, 'Household export should explicitly state attachments are not embedded.');
+assertTrue(hasHeader($export['headers'], 'Content-Disposition', 'attachment'), 'Household export should download as an attachment.');
+assertTrue(hasHeader($export['headers'], 'X-Content-Type-Options', 'nosniff'), 'Household export should prevent MIME sniffing.');
+
+$auditLogs = is_array($export['body']['auditLogs'] ?? null) ? $export['body']['auditLogs'] : [];
+$auditKeys = array_map(
+    static fn (array $item): string => sprintf('%s:%s', (string) ($item['entity_type'] ?? ''), (string) ($item['action'] ?? '')),
+    $auditLogs,
+);
+
+assertTrue(in_array('finance_import:import', $auditKeys, true), 'Audit logs should include finance import activity.');
+assertTrue(in_array('blood_test:create', $auditKeys, true), 'Audit logs should include health record creation.');
+assertTrue(in_array('document:create', $auditKeys, true), 'Audit logs should include document creation.');
+assertTrue(in_array('document:download', $auditKeys, true), 'Audit logs should include document downloads.');
+assertTrue(in_array('reminder:complete', $auditKeys, true), 'Audit logs should include reminder completion.');
+
+$forbiddenExport = apiRequest('GET', sprintf('/api/households/%s/export', rawurlencode(sprintf('%s-%s-%s-%s-%s', bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(6))))));
+assertTrue($forbiddenExport['status'] === 403, 'Household export should respect household access boundaries.');
 
 printf("OK: backend API smoke tests passed (%d checks).\n", $checks);

@@ -53,6 +53,7 @@ If the answer is no, do not implement it yet.
 - Health Review Center: deterministic health data-quality queue for out-of-range, unknown, suspicious, duplicate-looking, and stale lab data.
 - Daily UX Stabilization: Dashboard Decision Center structure, global quick actions, Inbox filters, setup-focused empty states, grouped timeline spending, and lightweight frontend smoke coverage.
 - Mobile Daily Use: phone-first bottom navigation, mobile quick action sheet, denser Dashboard/Inbox mobile layouts, mobile form spacing, and mobile smoke coverage.
+- Reliability & Privacy MVP: audit logs, JSON household export, safer upload/download handling, and `make check`.
 - Local Docker development setup with Symfony backend, React/Vite frontend, and PostgreSQL.
 
 ### Working Well
@@ -328,10 +329,12 @@ Status: completed for the smallest useful version. This milestone focused on dai
 
 ### Milestone 10: Reliability & Privacy
 
+Status: completed for the smallest useful version. Attachment export is intentionally metadata-only for now; files remain stored outside the public web root and can still be downloaded through protected endpoints.
+
 - Add audit logs for sensitive edits/deletes.
 - Add backup/export.
 - Harden uploaded file storage.
-- Add CI checks.
+- Add `make check` for local verification; CI service wiring remains future work.
 - Acceptance: app is safer to trust with real personal data.
 
 ## 6. Technical Improvements

@@ -41,7 +41,7 @@ const checks = [
   },
   {
     file: 'src/App.tsx',
-    contains: ['Expense', 'Health Result', 'Home Task', 'setOpenExpenseCreator(\'expense\')', 'setOpenReminderCreator(true)', 'setOpenHomeTaskCreator(true)', 'setExpenseSection(\'import-review\')', 'documentEmptyCopy'],
+    contains: ['Expense', 'Health Result', 'Home Task', 'Export data', 'setOpenExpenseCreator(\'expense\')', 'setOpenReminderCreator(true)', 'setOpenHomeTaskCreator(true)', 'setExpenseSection(\'import-review\')', 'documentEmptyCopy'],
     label: 'Quick actions, creation flows, expenses import, and setup empty states',
   },
   {

@@ -2875,6 +2875,11 @@ function App() {
               <span></span>
               API {apiState}
             </div>
+            {household && (
+              <a className="export-button" href={`/api/households/${household.id}/export`} download>
+                Export data
+              </a>
+            )}
             <button className="logout-button" type="button" onClick={logout}>
               Log out
             </button>
