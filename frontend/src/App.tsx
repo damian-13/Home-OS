@@ -522,6 +522,54 @@ async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+function expenseOverviewUrl(
+  householdId: string,
+  filters: { month: string; categoryId?: string; paidByMemberId?: string },
+) {
+  const params = new URLSearchParams()
+  params.set('month', filters.month)
+
+  if (filters.categoryId) {
+    params.set('categoryId', filters.categoryId)
+  }
+
+  if (filters.paidByMemberId) {
+    params.set('paidByMemberId', filters.paidByMemberId)
+  }
+
+  return `/api/households/${householdId}/expenses/overview?${params.toString()}`
+}
+
+function memberFilterSuffix(memberId: string) {
+  if (!memberId) {
+    return ''
+  }
+
+  const params = new URLSearchParams()
+  params.set('memberId', memberId)
+
+  return `?${params.toString()}`
+}
+
+const fetchExpenseOverview = (
+  householdId: string,
+  filters: { month: string; categoryId?: string; paidByMemberId?: string },
+) => apiJson<ExpenseOverview>(expenseOverviewUrl(householdId, filters))
+
+const fetchHealthOverview = (householdId: string, memberId: string) => (
+  apiJson<HealthOverview>(`/api/households/${householdId}/health/overview${memberFilterSuffix(memberId)}`)
+)
+
+const fetchHealthDocuments = (householdId: string, memberId: string) => (
+  apiJson<HealthDocument[]>(`/api/households/${householdId}/health/documents${memberFilterSuffix(memberId)}`)
+)
+
+const fetchMarkerHistory = (householdId: string, markerName: string, memberId: string) => (
+  apiJson<BloodTestMarker[]>(
+    `/api/households/${householdId}/health/markers/${encodeURIComponent(markerName)}/history${memberFilterSuffix(memberId)}`,
+  )
+)
+
 async function apiNoContent(url: string, options?: RequestInit): Promise<void> {
   const response = await fetch(url, {
     credentials: 'same-origin',
@@ -738,10 +786,24 @@ function App() {
           loadDocuments(user.householdId),
           loadInbox(user.householdId),
           loadTimeline(user.householdId),
-          loadExpenseOverview(user.householdId),
-          loadHealthOverview(user.householdId),
+          fetchExpenseOverview(user.householdId, { month: currentMonth }).then((overview) => {
+            setExpenseOverview(overview)
+            setBudgetDrafts(Object.fromEntries(overview.budgetUsage.map((row) => [row.category.id, row.budget ? String(row.budget) : ''])))
+
+            if (overview.categories[0]) {
+              setExpenseCategoryId(overview.categories[0].id)
+              setBillCategoryId(overview.categories[0].id)
+            }
+          }),
+          fetchHealthOverview(user.householdId, '').then((overview) => {
+            setHealthOverview(overview)
+
+            if (overview.markerNames[0]) {
+              setSelectedMarkerName(overview.markerNames[0])
+            }
+          }),
           loadHealthReview(user.householdId),
-          loadHealthDocuments(user.householdId),
+          fetchHealthDocuments(user.householdId, '').then(setHealthDocuments),
         ])
       })
       .catch(() => {
@@ -823,18 +885,11 @@ function App() {
   }
 
   async function loadExpenseOverview(householdId: string) {
-    const params = new URLSearchParams()
-    params.set('month', expenseFilterMonth)
-
-    if (expenseFilterCategoryId) {
-      params.set('categoryId', expenseFilterCategoryId)
-    }
-
-    if (expenseFilterPaidByMemberId) {
-      params.set('paidByMemberId', expenseFilterPaidByMemberId)
-    }
-
-    const overview = await apiJson<ExpenseOverview>(`/api/households/${householdId}/expenses/overview?${params.toString()}`)
+    const overview = await fetchExpenseOverview(householdId, {
+      month: expenseFilterMonth,
+      categoryId: expenseFilterCategoryId,
+      paidByMemberId: expenseFilterPaidByMemberId,
+    })
     setExpenseOverview(overview)
     setBudgetDrafts(Object.fromEntries(overview.budgetUsage.map((row) => [row.category.id, row.budget ? String(row.budget) : ''])))
 
@@ -919,19 +974,29 @@ function App() {
 
   useEffect(() => {
     if (currentUser) {
-      loadExpenseOverview(currentUser.householdId).catch(() => setSetupState('error'))
+      fetchExpenseOverview(currentUser.householdId, {
+        month: expenseFilterMonth,
+        categoryId: expenseFilterCategoryId,
+        paidByMemberId: expenseFilterPaidByMemberId,
+      })
+        .then((overview) => {
+          setExpenseOverview(overview)
+          setBudgetDrafts(Object.fromEntries(overview.budgetUsage.map((row) => [row.category.id, row.budget ? String(row.budget) : ''])))
+
+          if (!expenseCategoryId && overview.categories[0]) {
+            setExpenseCategoryId(overview.categories[0].id)
+          }
+
+          if (!billCategoryId && overview.categories[0]) {
+            setBillCategoryId(overview.categories[0].id)
+          }
+        })
+        .catch(() => setSetupState('error'))
     }
-  }, [expenseFilterMonth, expenseFilterCategoryId, expenseFilterPaidByMemberId])
+  }, [currentUser, expenseFilterMonth, expenseFilterCategoryId, expenseFilterPaidByMemberId, expenseCategoryId, billCategoryId])
 
   async function loadHealthOverview(householdId: string) {
-    const params = new URLSearchParams()
-
-    if (healthMemberFilterId) {
-      params.set('memberId', healthMemberFilterId)
-    }
-
-    const suffix = params.toString() ? `?${params.toString()}` : ''
-    const overview = await apiJson<HealthOverview>(`/api/households/${householdId}/health/overview${suffix}`)
+    const overview = await fetchHealthOverview(householdId, healthMemberFilterId)
     setHealthOverview(overview)
 
     if (!selectedMarkerName && overview.markerNames[0]) {
@@ -944,14 +1009,7 @@ function App() {
   }
 
   async function loadHealthDocuments(householdId: string) {
-    const params = new URLSearchParams()
-
-    if (healthMemberFilterId) {
-      params.set('memberId', healthMemberFilterId)
-    }
-
-    const suffix = params.toString() ? `?${params.toString()}` : ''
-    setHealthDocuments(await apiJson<HealthDocument[]>(`/api/households/${householdId}/health/documents${suffix}`))
+    setHealthDocuments(await fetchHealthDocuments(householdId, healthMemberFilterId))
   }
 
   async function loadMarkerHistory(householdId: string, markerName: string) {
@@ -960,43 +1018,34 @@ function App() {
       return
     }
 
-    const params = new URLSearchParams()
-
-    if (healthMemberFilterId) {
-      params.set('memberId', healthMemberFilterId)
-    }
-
-    const suffix = params.toString() ? `?${params.toString()}` : ''
-    const history = await apiJson<BloodTestMarker[]>(
-      `/api/households/${householdId}/health/markers/${encodeURIComponent(markerName)}/history${suffix}`,
-    )
+    const history = await fetchMarkerHistory(householdId, markerName, healthMemberFilterId)
     setMarkerHistory(history)
   }
 
   useEffect(() => {
     if (currentUser) {
-      loadHealthOverview(currentUser.householdId).catch(() => setSetupState('error'))
-      loadHealthDocuments(currentUser.householdId).catch(() => setSetupState('error'))
+      fetchHealthOverview(currentUser.householdId, healthMemberFilterId)
+        .then((overview) => {
+          setHealthOverview(overview)
+
+          if (!selectedMarkerName && overview.markerNames[0]) {
+            setSelectedMarkerName(overview.markerNames[0])
+          }
+        })
+        .catch(() => setSetupState('error'))
+      fetchHealthDocuments(currentUser.householdId, healthMemberFilterId)
+        .then(setHealthDocuments)
+        .catch(() => setSetupState('error'))
     }
-  }, [healthMemberFilterId])
+  }, [currentUser, healthMemberFilterId, selectedMarkerName])
 
   useEffect(() => {
     if (currentUser && selectedMarkerName) {
-      const params = new URLSearchParams()
-
-      if (healthMemberFilterId) {
-        params.set('memberId', healthMemberFilterId)
-      }
-
-      const suffix = params.toString() ? `?${params.toString()}` : ''
-
-      apiJson<BloodTestMarker[]>(
-        `/api/households/${currentUser.householdId}/health/markers/${encodeURIComponent(selectedMarkerName)}/history${suffix}`,
-      )
+      fetchMarkerHistory(currentUser.householdId, selectedMarkerName, healthMemberFilterId)
         .then(setMarkerHistory)
         .catch(() => setSetupState('error'))
     }
-  }, [selectedMarkerName, healthMemberFilterId])
+  }, [currentUser, selectedMarkerName, healthMemberFilterId])
 
   const addMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
