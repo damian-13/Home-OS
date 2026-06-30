@@ -1034,6 +1034,21 @@ $healthReviewAttention = array_values(array_filter(
 
 assertTrue(count($healthReviewAttention) === 1, 'Dashboard should link to Health Review Center.');
 
+$digestCommand = sprintf('php bin/console homeos:send-daily-digest --household=%s --dry-run 2>&1', escapeshellarg($householdId));
+$digestOutput = [];
+$digestExitCode = 0;
+exec($digestCommand, $digestOutput, $digestExitCode);
+$digestText = implode("\n", $digestOutput);
+
+assertTrue($digestExitCode === 0, 'Daily digest command should run without sending external email.');
+assertTrue(str_contains($digestText, 'Smoke overdue reminder for dashboard'), 'Daily digest should include overdue reminders.');
+assertTrue(str_contains($digestText, 'Smoke today reminder for dashboard'), 'Daily digest should include reminders due today.');
+assertTrue(str_contains($digestText, 'Smoke water meter reading'), 'Daily digest should include overdue home maintenance tasks.');
+assertTrue(str_contains($digestText, 'Smoke expiring warranty'), 'Daily digest should include expiring documents.');
+assertTrue(str_contains($digestText, $firstImportDescription), 'Daily digest should include imported finance rows needing review.');
+assertTrue(str_contains($digestText, 'Smoke LDL'), 'Daily digest should include high-severity health review items.');
+assertTrue(str_contains($digestText, 'Email delivery is not configured'), 'Daily digest MVP should render locally without real email delivery.');
+
 $health = apiRequest('GET', sprintf('/api/households/%s/health/overview', rawurlencode($householdId)));
 
 assertTrue($health['status'] === 200, 'Health overview should return 200 for household member.');
