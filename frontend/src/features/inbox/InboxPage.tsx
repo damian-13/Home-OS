@@ -44,6 +44,7 @@ type Props = {
 
 const sourceFilters: Array<'all' | InboxItem['sourceModule']> = ['all', 'expenses', 'health', 'home', 'reminders', 'documents']
 const severityFilters: Array<'all' | InboxItem['severity']> = ['all', 'critical', 'warning', 'info']
+const shouldCollapseDetail = (item: InboxItem) => item.sourceModule === 'expenses' && item.detail.length > 96
 
 export function InboxPage({ inbox, inboxSourceTotals, dailyReviewItems, setupState, onRefresh, openInboxTarget }: Props) {
   const [sourceFilter, setSourceFilter] = useState<'all' | InboxItem['sourceModule']>('all')
@@ -158,7 +159,14 @@ export function InboxPage({ inbox, inboxSourceTotals, dailyReviewItems, setupSta
                           {item.sourceModule} · {item.sourceType.replaceAll('_', ' ')}
                           {item.dueAt ? ` · due ${item.dueAt}` : ` · detected ${item.detectedAt.slice(0, 10)}`}
                         </small>
-                        <p>{item.detail}</p>
+                        {shouldCollapseDetail(item) ? (
+                          <details className="inbox-item-detail">
+                            <summary>Details</summary>
+                            <p>{item.detail}</p>
+                          </details>
+                        ) : (
+                          <p>{item.detail}</p>
+                        )}
                       </div>
                       <button type="button" onClick={() => openInboxTarget(item)}>
                         {item.targetAction}

@@ -85,7 +85,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                     $expense->reviewStatus() === 'needs_review' ? sprintf('Review expense: %s', $expense->description()) : $expense->description(),
                     sprintf('%s · %.2f %s', $expense->category()->name(), $expense->amountCents() / 100, $expense->currency()),
                     $expense->spentOn()->format('Y-m-d'),
-                    '#expenses',
+                    $expense->reviewStatus() === 'needs_review' ? '#expenses:import-review' : '#expenses:transactions',
                     $expense->amountCents() >= 100000 ? 'high' : 'normal',
                 ));
 
@@ -108,7 +108,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                 sprintf('Daily spending: %d transaction%s', $summary['count'], $summary['count'] === 1 ? '' : 's'),
                 sprintf('%.2f %s total', $summary['amount'] / 100, $summary['currency']),
                 $day,
-                '#expenses',
+                '#expenses:transactions',
                 'normal',
             ));
         }
@@ -140,7 +140,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
             $entry->description(),
             sprintf('%s · %.2f %s', $entry->incomeKind(), $entry->amountCents() / 100, $entry->currency()),
             $entry->receivedOn()->format('Y-m-d'),
-            '#expenses',
+            '#expenses:overview',
             'normal',
         )), $entries);
     }
@@ -182,7 +182,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
             $test->labName() ? sprintf('Blood test from %s', $test->labName()) : 'Blood test added',
             sprintf('%d markers recorded.', count($test->markers())),
             $test->testedAt()->format('Y-m-d'),
-            '#health',
+            '#health-review',
             'normal',
         )), $tests);
 
@@ -196,7 +196,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                 sprintf('%s was %s', $marker->name(), $marker->status()),
                 sprintf('%s %s on %s', $marker->value(), $marker->unit(), $marker->bloodTest()->testedAt()->format('Y-m-d')),
                 $marker->bloodTest()->testedAt()->format('Y-m-d'),
-                '#health',
+                '#health-review',
                 'high',
             ));
         }
@@ -233,7 +233,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                 $isCompleted ? sprintf('Completed: %s', $task->title()) : sprintf('Home task due: %s', $task->title()),
                 sprintf('%s · %s priority', $task->area(), $task->priority()),
                 $this->formatDate($date),
-                '#home',
+                '#home:tasks',
                 $task->priority() === HomeMaintenanceTask::PRIORITY_HIGH ? 'high' : 'normal',
             ));
         }
@@ -270,7 +270,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                 $reminder->title(),
                 sprintf('%s · %s priority', $reminder->status(), $reminder->priority()),
                 $this->formatDate($date),
-                '#reminders',
+                '#reminders:list',
                 $reminder->priority() === Reminder::PRIORITY_HIGH ? 'high' : 'normal',
             ));
         }
@@ -305,7 +305,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                 sprintf('Document added: %s', $document->title()),
                 sprintf('%s%s', $document->type(), $document->originalName() ? sprintf(' · %s', $document->originalName()) : ''),
                 $document->createdAt()->format(DATE_ATOM),
-                '#documents',
+                '#documents:list',
                 'normal',
             ));
 
@@ -319,7 +319,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                     sprintf('Document expires: %s', $document->title()),
                     sprintf('%s expires on %s', $document->type(), $document->expiresAt()->format('Y-m-d')),
                     $document->expiresAt()->format('Y-m-d'),
-                    '#documents',
+                    '#documents:list',
                     $document->expiresAt() < new DateTimeImmutable('today') ? 'high' : 'normal',
                 ));
             }
@@ -361,7 +361,7 @@ final readonly class GetHouseholdTimelineHandler implements QueryHandler
                 'Recurring bill paid',
                 sprintf('%s%s', $payment->month(), $payment->amountOverrideCents() ? sprintf(' · %.2f PLN', $payment->amountOverrideCents() / 100) : ''),
                 $payment->paidOn()->format('Y-m-d'),
-                '#expenses',
+                '#expenses:bills',
                 'normal',
             ));
         }

@@ -168,10 +168,10 @@ final readonly class DailyNotificationDigestBuilder
 
             $items[] = new NotificationDigestItemView(
                 sprintf('finance-expense-%s', $expense->id),
-                $expense->description,
+                $this->displayTransactionTitle($expense->description),
                 sprintf('%s · %.2f %s · %s', $expense->spentOn, $expense->amount, $expense->currency, $expense->reviewReason ?? 'Imported expense needs review'),
                 'warning',
-                '#expenses',
+                '#expenses:import-review',
                 null,
             );
         }
@@ -183,10 +183,10 @@ final readonly class DailyNotificationDigestBuilder
 
             $items[] = new NotificationDigestItemView(
                 sprintf('finance-income-%s', $entry->id),
-                $entry->description,
+                $this->displayTransactionTitle($entry->description),
                 sprintf('%s · %.2f %s · %s', $entry->receivedOn, $entry->amount, $entry->currency, $entry->reviewReason ?? 'Imported income needs review'),
                 'warning',
-                '#expenses',
+                '#expenses:import-review',
                 null,
             );
         }
@@ -204,5 +204,15 @@ final readonly class DailyNotificationDigestBuilder
             '#health-review',
             null,
         );
+    }
+
+    private function displayTransactionTitle(string $description): string
+    {
+        $title = preg_replace('/\s+/', ' ', trim($description)) ?? trim($description);
+        $title = preg_replace('/^\d{4,}[-*\s]+/', '', $title) ?? $title;
+        $title = preg_replace('/\s+\d+[,.]\d{2}\s+PLN\s+\d{4}-\d{2}-\d{2}.*/iu', '', $title) ?? $title;
+        $title = preg_replace('/\s+Transakcja\s+(kartą|BLIK).*$/iu', '', $title) ?? $title;
+
+        return mb_strlen($title) > 90 ? mb_substr($title, 0, 87).'...' : $title;
     }
 }

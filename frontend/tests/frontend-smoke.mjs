@@ -6,7 +6,7 @@ const root = resolve(import.meta.dirname, '..')
 const checks = [
   {
     file: 'src/features/dashboard/DashboardPage.tsx',
-    contains: ['What should I do today?', 'Quick Capture', 'Recent Activity'],
+    contains: ['Today\'s Top 3', 'What should I do today?', 'Quick Capture', 'Make Home OS useful faster.', 'Recent Activity'],
     label: 'Dashboard decision center',
   },
   {
@@ -36,12 +36,12 @@ const checks = [
   },
   {
     file: 'src/features/inbox/InboxPage.tsx',
-    contains: ['Source', 'Severity', 'Everything important looks calm for today.'],
+    contains: ['Source', 'Severity', 'Everything important looks calm for today.', 'inbox-item-detail'],
     label: 'Inbox filters',
   },
   {
     file: 'src/App.tsx',
-    contains: ['Expense', 'Health Result', 'Home Task', 'Export data', 'setOpenExpenseCreator(\'expense\')', 'setOpenReminderCreator(true)', 'setOpenHomeTaskCreator(true)', 'setExpenseSection(\'import-review\')', 'documentEmptyCopy'],
+    contains: ['Expense', 'Health Result', 'Home Task', 'Export data', 'setOpenExpenseCreator(\'expense\')', 'setOpenReminderCreator(true)', 'setOpenHomeTaskCreator(true)', 'setExpenseSection(\'import-review\')', 'documentEmptyCopy', 'parseTargetHash', 'Raw bank text', 'Data quality review'],
     label: 'Quick actions, creation flows, expenses import, and setup empty states',
   },
   {

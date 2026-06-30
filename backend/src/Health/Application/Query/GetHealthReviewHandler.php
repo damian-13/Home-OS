@@ -54,6 +54,7 @@ final readonly class GetHealthReviewHandler implements QueryHandler
                 'missing_reference_range',
                 'unknown_marker',
                 'suspicious_unit',
+                'suspicious_value',
                 'duplicate_result_candidate',
                 'stale_marker',
             ],
@@ -75,16 +76,12 @@ final readonly class GetHealthReviewHandler implements QueryHandler
 
         foreach ($bloodTests as $bloodTest) {
             foreach ($bloodTest->markers() as $marker) {
-                if (in_array($marker->status(), ['low', 'high'], true)) {
-                    $items[] = $this->markerItem(
-                        'out_of_range_result',
-                        'critical',
-                        sprintf('%s is %s', $marker->name(), $marker->status()),
-                        sprintf('Recorded value: %s %s on %s. This is based only on the saved status/reference data.', $this->number($marker->value()), $marker->unit(), $bloodTest->testedAt()->format('Y-m-d')),
-                        $marker,
-                        'Check the original lab result and edit the marker if the value, unit, range, or status is wrong.',
-                    );
-                }
+                $expectedUnit = $catalog[$this->normalize($marker->name())]['unit'] ?? null;
+                $unitLooksSuspicious = trim($marker->unit()) === '' || ($expectedUnit && $this->normalize($marker->unit()) !== $this->normalize($expectedUnit));
+                $rangeMissing = $marker->referenceMin() === null && $marker->referenceMax() === null;
+                $rangeInverted = $marker->referenceMin() !== null && $marker->referenceMax() !== null && $marker->referenceMin() > $marker->referenceMax();
+                $valueLooksSuspicious = $this->valueLooksSuspicious($marker, $catalog[$this->normalize($marker->name())] ?? null);
+                $hasDataQualityConcern = $unitLooksSuspicious || $rangeMissing || $rangeInverted || $valueLooksSuspicious;
 
                 if ($marker->status() === 'unknown' || !isset($catalog[$this->normalize($marker->name())])) {
                     $items[] = $this->markerItem(
@@ -97,37 +94,58 @@ final readonly class GetHealthReviewHandler implements QueryHandler
                     );
                 }
 
-                if ($marker->referenceMin() === null && $marker->referenceMax() === null) {
+                if ($rangeMissing) {
                     $items[] = $this->markerItem(
                         'missing_reference_range',
                         'warning',
-                        sprintf('Missing reference range: %s', $marker->name()),
+                        sprintf('Data quality review: missing range for %s', $marker->name()),
                         'Both reference minimum and maximum are empty. Range-based review may not work for this marker.',
                         $marker,
                         'Add the reference range from the original lab result if it is available.',
                     );
-                } elseif ($marker->referenceMin() !== null && $marker->referenceMax() !== null && $marker->referenceMin() > $marker->referenceMax()) {
+                } elseif ($rangeInverted) {
                     $items[] = $this->markerItem(
                         'missing_reference_range',
                         'warning',
-                        sprintf('Suspicious reference range: %s', $marker->name()),
+                        sprintf('Data quality review: suspicious range for %s', $marker->name()),
                         sprintf('Reference minimum %s is higher than maximum %s.', $this->number($marker->referenceMin()), $this->number($marker->referenceMax())),
                         $marker,
                         'Check and correct the reference range.',
                     );
                 }
 
-                $expectedUnit = $catalog[$this->normalize($marker->name())]['unit'] ?? null;
-                if (trim($marker->unit()) === '' || ($expectedUnit && $this->normalize($marker->unit()) !== $this->normalize($expectedUnit))) {
+                if ($unitLooksSuspicious) {
                     $items[] = $this->markerItem(
                         'suspicious_unit',
                         'warning',
-                        sprintf('Check unit: %s', $marker->name()),
+                        sprintf('Data quality review: check unit for %s', $marker->name()),
                         $expectedUnit
                             ? sprintf('Saved unit is "%s"; catalog unit is "%s".', $marker->unit(), $expectedUnit)
                             : 'Unit is missing or could not be compared with the catalog.',
                         $marker,
                         'Confirm the unit against the original lab result.',
+                    );
+                }
+
+                if ($valueLooksSuspicious) {
+                    $items[] = $this->markerItem(
+                        'suspicious_value',
+                        'warning',
+                        sprintf('Data quality review: check value for %s', $marker->name()),
+                        sprintf('Saved value %s %s looks unusually far from the saved/catalog reference range and may be an OCR or manual entry mistake.', $this->number($marker->value()), $marker->unit()),
+                        $marker,
+                        'Compare the value with the original lab result before treating it as a health signal.',
+                    );
+                }
+
+                if (in_array($marker->status(), ['low', 'high'], true) && !$hasDataQualityConcern) {
+                    $items[] = $this->markerItem(
+                        'out_of_range_result',
+                        'critical',
+                        sprintf('%s is %s', $marker->name(), $marker->status()),
+                        sprintf('Recorded value: %s %s on %s. This is based only on the saved status/reference data.', $this->number($marker->value()), $marker->unit(), $bloodTest->testedAt()->format('Y-m-d')),
+                        $marker,
+                        'Check the original lab result and discuss health meaning with a clinician if needed.',
                     );
                 }
             }
@@ -280,5 +298,28 @@ final readonly class GetHealthReviewHandler implements QueryHandler
     private function number(float $value): string
     {
         return rtrim(rtrim(sprintf('%.3F', $value), '0'), '.');
+    }
+
+    /**
+     * @param array{name: string, aliases: list<string>, unit: string, referenceMin: float|null, referenceMax: float|null, category: string}|null $catalogMarker
+     */
+    private function valueLooksSuspicious(BloodTestMarker $marker, ?array $catalogMarker): bool
+    {
+        $min = $marker->referenceMin() ?? $catalogMarker['referenceMin'] ?? null;
+        $max = $marker->referenceMax() ?? $catalogMarker['referenceMax'] ?? null;
+
+        if ($marker->value() < 0) {
+            return true;
+        }
+
+        if ($min === null || $max === null || $max <= $min) {
+            return false;
+        }
+
+        $range = $max - $min;
+        $upperSuspicionLimit = $max + max($range * 5, abs($max) * 3);
+        $lowerSuspicionLimit = $min - max($range * 5, abs($min) * 3);
+
+        return $marker->value() > $upperSuspicionLimit || $marker->value() < $lowerSuspicionLimit;
     }
 }

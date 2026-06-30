@@ -33,6 +33,18 @@
   cursor: pointer;
 }
 
+.inbox-item-detail {
+  margin-top: 8px;
+  color: #60708a;
+}
+
+.inbox-item-detail summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 850;
+  color: #2246c6;
+}
+
 @media (max-width: 620px) {
   .inbox-filter-bar {
     grid-template-columns: 1fr;

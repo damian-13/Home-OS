@@ -1402,6 +1402,28 @@ h3 {
   font-weight: 750;
 }
 
+.raw-bank-text {
+  margin-top: 8px;
+  font-size: 0.88rem;
+  color: #60708a;
+}
+
+.raw-bank-text summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 800;
+  color: #2246c6;
+}
+
+.raw-bank-text p {
+  margin: 8px 0 0;
+  padding: 10px;
+  border: 1px solid #dbe4f2;
+  border-radius: 8px;
+  background: #f8faff;
+  overflow-wrap: anywhere;
+}
+
 .finance-import-row-list article > span {
   border-radius: 999px;
   background: #e9f8f3;

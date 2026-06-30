@@ -19,6 +19,8 @@ use App\Reminders\Domain\Model\Reminder;
 use App\Reminders\Domain\Repository\ReminderRepository;
 use App\Shared\Application\Query\QueryHandler;
 use DateTimeImmutable;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 final readonly class GetDashboardHandler implements QueryHandler
 {
@@ -30,6 +32,7 @@ final readonly class GetDashboardHandler implements QueryHandler
         private GetInboxHandler $inbox,
         private ReminderRepository $reminders,
         private DocumentRepository $documents,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -40,24 +43,30 @@ final readonly class GetDashboardHandler implements QueryHandler
 
     public function __invoke(GetDashboardQuery $query): DashboardView
     {
-        $month = (new DateTimeImmutable())->format('Y-m');
-        $expenses = ($this->expenseOverview)(new GetExpenseOverviewQuery($query->householdId, $month));
-        $outOfRangeMarkers = $this->health->latestOutOfRangeMarkers($query->householdId, null, 20);
-        $markerNames = $this->health->markerNames($query->householdId);
-        $healthReview = ($this->healthReview)(new GetHealthReviewQuery($query->householdId));
-        $today = new DateTimeImmutable('today');
-        $overdueHomeTasks = $this->homeTasks->overdueTasks($query->householdId, $today, 5);
-        $upcomingHomeTasks = $this->homeTasks->upcomingTasks($query->householdId, $today, 14, 5);
-        $overdueReminders = $this->reminders->overdueReminders($query->householdId, $today, 5);
-        $todayReminders = $this->reminders->dueTodayReminders($query->householdId, $today, 5);
-        $upcomingReminders = $this->reminders->upcomingReminders($query->householdId, $today, 14, 5);
-        $expiredDocuments = $this->documents->expiredDocuments($query->householdId, $today, 5);
-        $expiringDocuments = $this->documents->expiringDocuments($query->householdId, $today, 30, 5);
-        $inbox = ($this->inbox)(new GetInboxQuery($query->householdId));
-        $attention = [];
+        $startedAt = microtime(true);
 
-        if ($expenses->projectedMonthEndBalance < 0) {
-            $attention[] = new DashboardAttentionItemView(
+        try {
+            $month = (new DateTimeImmutable())->format('Y-m');
+            $expenses = ($this->expenseOverview)(new GetExpenseOverviewQuery($query->householdId, $month));
+            $markerNames = $this->health->markerNames($query->householdId);
+            $healthReview = ($this->healthReview)(new GetHealthReviewQuery($query->householdId));
+            $outOfRangeReviewItems = array_values(array_filter(
+                $healthReview['items'],
+                static fn (object $item): bool => property_exists($item, 'type') && $item->type === 'out_of_range_result',
+            ));
+            $today = new DateTimeImmutable('today');
+            $overdueHomeTasks = $this->homeTasks->overdueTasks($query->householdId, $today, 5);
+            $upcomingHomeTasks = $this->homeTasks->upcomingTasks($query->householdId, $today, 14, 5);
+            $overdueReminders = $this->reminders->overdueReminders($query->householdId, $today, 5);
+            $todayReminders = $this->reminders->dueTodayReminders($query->householdId, $today, 5);
+            $upcomingReminders = $this->reminders->upcomingReminders($query->householdId, $today, 14, 5);
+            $expiredDocuments = $this->documents->expiredDocuments($query->householdId, $today, 5);
+            $expiringDocuments = $this->documents->expiringDocuments($query->householdId, $today, 30, 5);
+            $inbox = ($this->inbox)(new GetInboxQuery($query->householdId));
+            $attention = [];
+
+            if ($expenses->projectedMonthEndBalance < 0) {
+                $attention[] = new DashboardAttentionItemView(
                 'expenses-negative-projection',
                 'expenses',
                 'critical',
@@ -66,12 +75,12 @@ final readonly class GetDashboardHandler implements QueryHandler
                 'Open overview',
                 'expenses',
                 'overview',
-            );
-        }
+                );
+            }
 
-        $overdueBills = count($expenses->billChecklist['overdue'] ?? []);
-        if ($overdueBills > 0) {
-            $attention[] = new DashboardAttentionItemView(
+            $overdueBills = count($expenses->billChecklist['overdue'] ?? []);
+            if ($overdueBills > 0) {
+                $attention[] = new DashboardAttentionItemView(
                 'expenses-overdue-bills',
                 'expenses',
                 'critical',
@@ -80,8 +89,8 @@ final readonly class GetDashboardHandler implements QueryHandler
                 'Review bills',
                 'expenses',
                 'bills',
-            );
-        }
+                );
+            }
 
         foreach (array_slice($overdueHomeTasks, 0, 3) as $task) {
             $attention[] = new DashboardAttentionItemView(
@@ -131,15 +140,15 @@ final readonly class GetDashboardHandler implements QueryHandler
             );
         }
 
-        if (count($outOfRangeMarkers) > 0) {
+        if (count($outOfRangeReviewItems) > 0) {
             $attention[] = new DashboardAttentionItemView(
                 'health-out-of-range',
                 'health',
                 'critical',
-                sprintf('%d health marker%s out of range', count($outOfRangeMarkers), count($outOfRangeMarkers) === 1 ? ' is' : 's are'),
-                $this->markerSummary($outOfRangeMarkers),
-                'Open health',
-                'health',
+                sprintf('%d health marker%s out of range', count($outOfRangeReviewItems), count($outOfRangeReviewItems) === 1 ? ' is' : 's are'),
+                $this->healthReviewSummary($outOfRangeReviewItems),
+                'Open review',
+                'health-review',
             );
         }
 
@@ -244,7 +253,9 @@ final readonly class GetDashboardHandler implements QueryHandler
             );
         }
 
-        return new DashboardView(
+            $attention = $this->sortAttention($attention);
+
+            $view = new DashboardView(
             'Home OS',
             'online',
             [
@@ -256,13 +267,31 @@ final readonly class GetDashboardHandler implements QueryHandler
                 'projectedBalance' => $expenses->projectedMonthEndBalance,
                 'financeReviewCount' => (int) ($expenses->review['needsReviewCount'] ?? 0),
                 'healthMarkersTracked' => count($markerNames),
-                'healthOutOfRange' => count($outOfRangeMarkers),
+                'healthOutOfRange' => count($outOfRangeReviewItems),
                 'healthReviewCount' => $healthReview['summary']['total'],
                 'healthReviewCritical' => $healthReview['summary']['critical'],
                 'documentsStored' => $this->documents->countDocuments($query->householdId),
             ],
             $attention,
-        );
+            );
+
+            $this->logger->info('Dashboard aggregation completed.', [
+                'householdId' => $query->householdId,
+                'durationMs' => round((microtime(true) - $startedAt) * 1000, 1),
+                'attentionCount' => count($attention),
+            ]);
+
+            return $view;
+        } catch (Throwable $exception) {
+            $this->logger->error('Dashboard aggregation failed.', [
+                'householdId' => $query->householdId,
+                'durationMs' => round((microtime(true) - $startedAt) * 1000, 1),
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        }
     }
 
     /**
@@ -284,13 +313,36 @@ final readonly class GetDashboardHandler implements QueryHandler
     }
 
     /**
-     * @param list<BloodTestMarker> $markers
+     * @param list<object> $items
      */
-    private function markerSummary(array $markers): string
+    private function healthReviewSummary(array $items): string
     {
         return implode(', ', array_map(
-            static fn (BloodTestMarker $marker): string => sprintf('%s %s', $marker->name(), $marker->status()),
-            array_slice($markers, 0, 4),
+            static fn (object $item): string => property_exists($item, 'title') ? $item->title : 'Health review item',
+            array_slice($items, 0, 4),
         ));
+    }
+
+    /**
+     * @param list<DashboardAttentionItemView> $attention
+     * @return list<DashboardAttentionItemView>
+     */
+    private function sortAttention(array $attention): array
+    {
+        usort($attention, static function (DashboardAttentionItemView $left, DashboardAttentionItemView $right): int {
+            $severityRank = ['critical' => 0, 'warning' => 1, 'info' => 2];
+            $areaRank = [
+                'home' => 0,
+                'reminders' => 1,
+                'health' => 2,
+                'expenses' => 3,
+                'documents' => 4,
+            ];
+
+            return ($severityRank[$left->severity] ?? 9) <=> ($severityRank[$right->severity] ?? 9)
+                ?: ($areaRank[$left->area] ?? 9) <=> ($areaRank[$right->area] ?? 9);
+        });
+
+        return $attention;
     }
 }

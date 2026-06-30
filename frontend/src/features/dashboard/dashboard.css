@@ -28,6 +28,54 @@
   background: transparent;
 }
 
+.setup-checklist-section {
+  background: #fbfcff;
+}
+
+.setup-checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-checklist article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #dce5f4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.setup-checklist article > span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2148b4;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.setup-checklist article.done {
+  opacity: 0.72;
+}
+
+.setup-checklist article.done > span {
+  background: #e8f8ef;
+  color: #087443;
+}
+
+.setup-checklist strong,
+.setup-checklist small {
+  display: block;
+}
+
+.setup-checklist small {
+  margin-top: 3px;
+  color: #66748b;
+}
+
 .review-section,
 .recent-section {
   grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
@@ -36,6 +84,17 @@
 
 .compact-modules {
   opacity: 0.96;
+}
+
+.focus-panel summary {
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.focus-panel summary::-webkit-details-marker {
+  display: none;
 }
 
 @media (max-width: 980px) {
@@ -65,7 +124,8 @@
   }
 
   .today-action-list .attention-item button,
-  .all-attention-section .attention-item button {
+  .all-attention-section .attention-item button,
+  .setup-checklist article button {
     width: 100%;
   }
 
@@ -73,5 +133,9 @@
   .recent-section,
   .module-grid.compact-modules {
     gap: 12px;
+  }
+
+  .setup-checklist article {
+    grid-template-columns: 1fr;
   }
 }

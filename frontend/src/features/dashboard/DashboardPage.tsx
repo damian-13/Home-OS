@@ -27,10 +27,19 @@ type DailyAction = {
   onClick: () => void
 }
 
+type SetupChecklistItem = {
+  title: string
+  detail: string
+  done: boolean
+  action: string
+  onClick: () => void
+}
+
 type Props = {
   modules: ModuleCard[]
   quickCapture: ReactNode
   dailyActionCards: DailyAction[]
+  setupChecklist: SetupChecklistItem[]
   attention: AttentionItem[]
   attentionGroups: Record<'critical' | 'warning' | 'info', AttentionItem[]>
   attentionGroupLabels: Record<'critical' | 'warning' | 'info', string>
@@ -41,12 +50,14 @@ export function DashboardPage({
   modules,
   quickCapture,
   dailyActionCards,
+  setupChecklist,
   attention,
   attentionGroups,
   attentionGroupLabels,
   openAttentionTarget,
 }: Props) {
   const todayActions = attention.slice(0, 3)
+  const remainingSetupItems = setupChecklist.filter((item) => !item.done)
   const reviewActions = dailyActionCards.filter((item) => ['Inbox review', 'Review imported money', 'Health review'].includes(item.title))
   const recentActions = dailyActionCards.filter((item) => ['Recent household activity', 'Search everything', 'Documents expiring', 'Reminders due', 'Bills this month', 'Monthly money review'].includes(item.title))
 
@@ -55,7 +66,7 @@ export function DashboardPage({
       <section className="decision-section today-section" aria-label="Today">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Today</p>
+            <p className="eyebrow">Today's Top 3</p>
             <h2>What should I do today?</h2>
             <p className="panel-copy">Start with the highest-value actions. Everything else can wait.</p>
           </div>
@@ -88,6 +99,33 @@ export function DashboardPage({
       <section className="decision-section quick-capture-section" aria-label="Quick Capture">
         {quickCapture}
       </section>
+
+      {remainingSetupItems.length > 0 && (
+        <section className="decision-section setup-checklist-section" aria-label="First run checklist">
+          <div>
+            <p className="eyebrow">Setup</p>
+            <h2>Make Home OS useful faster.</h2>
+            <p className="panel-copy">These five basics unlock most daily reminders and money signals.</p>
+          </div>
+
+          <div className="setup-checklist">
+            {setupChecklist.map((item) => (
+              <article className={item.done ? 'done' : ''} key={item.title}>
+                <span>{item.done ? 'Done' : 'Next'}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>{item.detail}</small>
+                </div>
+                {!item.done && (
+                  <button type="button" onClick={item.onClick}>
+                    {item.action}
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="decision-section review-section" aria-label="Review">
         <div>
@@ -137,11 +175,11 @@ export function DashboardPage({
         ))}
       </section>
 
-      <section className="focus-panel">
-        <div>
+      <details className="focus-panel">
+        <summary>
           <p className="eyebrow">All Attention</p>
           <h2>Everything waiting behind today.</h2>
-        </div>
+        </summary>
 
         <div className="attention-list">
           {attention.length > 0 ? (
@@ -172,7 +210,7 @@ export function DashboardPage({
             </article>
           )}
         </div>
-      </section>
+      </details>
     </section>
   )
 }

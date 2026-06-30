@@ -83,7 +83,7 @@ final readonly class SearchHouseholdHandler implements QueryHandler
             $expense->description(),
             sprintf('%s · %.2f %s · %s', $expense->category()->name(), $expense->amountCents() / 100, $expense->currency(), $expense->spentOn()->format('Y-m-d')),
             $expense->spentOn()->format('Y-m-d'),
-            '#expenses',
+            '#expenses:transactions',
             $this->score($term, $expense->description(), $expense->category()->name()),
         ), $expenses);
     }
@@ -113,7 +113,7 @@ final readonly class SearchHouseholdHandler implements QueryHandler
             $entry->description(),
             sprintf('%s income · %.2f %s · %s', $entry->incomeKind(), $entry->amountCents() / 100, $entry->currency(), $entry->receivedOn()->format('Y-m-d')),
             $entry->receivedOn()->format('Y-m-d'),
-            '#expenses',
+            '#expenses:overview',
             $this->score($term, $entry->description(), $entry->incomeKind()),
         ), $entries);
     }
@@ -156,7 +156,7 @@ final readonly class SearchHouseholdHandler implements QueryHandler
             $test->labName() ? sprintf('Blood test from %s', $test->labName()) : 'Blood test',
             sprintf('%d markers · %s', count($test->markers()), $test->testedAt()->format('Y-m-d')),
             $test->testedAt()->format('Y-m-d'),
-            '#health',
+            '#health-review',
             $this->score($term, $test->labName() ?? '', $test->notes() ?? ''),
         ), $tests);
 
@@ -169,7 +169,7 @@ final readonly class SearchHouseholdHandler implements QueryHandler
                 $marker->name(),
                 sprintf('%s %s · %s · %s', $marker->value(), $marker->unit(), $marker->status(), $marker->bloodTest()->testedAt()->format('Y-m-d')),
                 $marker->bloodTest()->testedAt()->format('Y-m-d'),
-                '#health',
+                '#health-review',
                 $this->score($term, $marker->name(), $marker->unit(), $marker->notes() ?? ''),
             );
         }
@@ -202,7 +202,7 @@ final readonly class SearchHouseholdHandler implements QueryHandler
             $task->title(),
             sprintf('%s · %s · due %s', $task->area(), $task->status(), $task->nextDueAt()->format('Y-m-d')),
             $task->nextDueAt()->format('Y-m-d'),
-            '#home',
+            '#home:tasks',
             $this->score($term, $task->title(), $task->area(), $task->notes() ?? ''),
         ), $tasks);
     }
@@ -232,7 +232,7 @@ final readonly class SearchHouseholdHandler implements QueryHandler
             $reminder->title(),
             sprintf('%s · due %s', $reminder->status(), $reminder->dueAt()->format('Y-m-d')),
             $reminder->dueAt()->format('Y-m-d'),
-            '#reminders',
+            '#reminders:list',
             $this->score($term, $reminder->title(), $reminder->note() ?? '', $reminder->relatedType() ?? ''),
         ), $reminders);
     }
@@ -262,7 +262,7 @@ final readonly class SearchHouseholdHandler implements QueryHandler
             $document->title(),
             sprintf('%s%s', $document->type(), $document->expiresAt() ? sprintf(' · expires %s', $document->expiresAt()->format('Y-m-d')) : ''),
             $document->expiresAt()?->format('Y-m-d') ?? $document->createdAt()->format('Y-m-d'),
-            '#documents',
+            '#documents:list',
             $this->score($term, $document->title(), $document->type(), $document->tags() ?? '', $document->note() ?? '', $document->originalName() ?? ''),
         ), $documents);
     }

@@ -491,6 +491,27 @@ const householdStorageKey = 'home-os.household-id'
 
 const today = new Date().toISOString().slice(0, 10)
 const currentMonth = today.slice(0, 7)
+const validPages: AppPage[] = ['dashboard', 'household', 'home', 'reminders', 'inbox', 'search', 'timeline', 'expenses', 'health', 'health-review', 'documents']
+const validExpenseSections: ExpenseSection[] = ['overview', 'monthly-review', 'analytics', 'transactions', 'import-review', 'budgets', 'bills']
+
+const parseTargetHash = (targetUrl: string): { page: AppPage | null; section: ExpenseSection | null } => {
+  const [pagePart, sectionPart] = targetUrl.replace('#', '').split(':')
+  const page = validPages.includes(pagePart as AppPage) ? pagePart as AppPage : null
+  const section = validExpenseSections.includes(sectionPart as ExpenseSection) ? sectionPart as ExpenseSection : null
+
+  return { page, section }
+}
+
+const compactTransactionTitle = (description: string) => {
+  const normalized = description.replace(/\s+/g, ' ').trim()
+  const withoutAccountPrefix = normalized.replace(/^\d{4,}[-*\s]+/, '')
+  const withoutAmountTrail = withoutAccountPrefix.replace(/\s+\d+[,.]\d{2}\s+PLN\s+\d{4}-\d{2}-\d{2}.*/iu, '')
+  const withoutTransactionTrail = withoutAmountTrail.replace(/\s+Transakcja\s+(kartą|BLIK).*$/iu, '')
+
+  return withoutTransactionTrail.length > 90 ? `${withoutTransactionTrail.slice(0, 87)}...` : withoutTransactionTrail
+}
+
+const isLongTransactionText = (description: string) => description.length > 90 || /\d{4,}[-*\s]+/.test(description)
 const createMarkerRow = (): MarkerFormRow => ({
   id: crypto.randomUUID(),
   selected: true,
@@ -749,10 +770,13 @@ function App() {
 
   useEffect(() => {
     const readPageFromHash = () => {
-      const page = window.location.hash.replace('#', '') as AppPage
+      const { page, section } = parseTargetHash(window.location.hash)
 
-      if (['dashboard', 'household', 'home', 'reminders', 'inbox', 'search', 'timeline', 'expenses', 'health', 'health-review', 'documents'].includes(page)) {
+      if (page) {
         setActivePage(page)
+        if (page === 'expenses' && section) {
+          setExpenseSection(section)
+        }
       }
     }
 
@@ -2278,11 +2302,30 @@ function App() {
     module,
     results: searchResponse.results.filter((result) => result.sourceModule === module),
   })).filter((group) => group.results.length > 0)
-  const healthReviewGroups = {
-    critical: healthReview.items.filter((item) => item.severity === 'critical'),
-    warning: healthReview.items.filter((item) => item.severity === 'warning'),
-    info: healthReview.items.filter((item) => item.severity === 'info'),
-  }
+  const healthDataQualityTypes = ['missing_reference_range', 'unknown_marker', 'suspicious_unit', 'suspicious_value', 'duplicate_result_candidate']
+  const healthReviewSections = [
+    {
+      key: 'out-of-range',
+      eyebrow: 'Lab signals',
+      title: 'Out-of-range results',
+      empty: 'No trusted out-of-range marker signals need attention.',
+      items: healthReview.items.filter((item) => item.type === 'out_of_range_result'),
+    },
+    {
+      key: 'data-quality',
+      eyebrow: 'Data quality review',
+      title: 'Clean imported/manual data',
+      empty: 'No marker names, units, values, or ranges need cleanup.',
+      items: healthReview.items.filter((item) => healthDataQualityTypes.includes(item.type)),
+    },
+    {
+      key: 'routine',
+      eyebrow: 'Routine review',
+      title: 'Duplicates and stale markers',
+      empty: 'No duplicate-looking or stale marker records need review.',
+      items: healthReview.items.filter((item) => !['out_of_range_result', ...healthDataQualityTypes].includes(item.type)),
+    },
+  ]
   const inboxSourceTotals = {
     expenses: inbox.items.filter((item) => item.sourceModule === 'expenses').length,
     health: inbox.items.filter((item) => item.sourceModule === 'health').length,
@@ -2451,7 +2494,7 @@ function App() {
 
   const openAttentionTarget = (item: Dashboard['attention'][number]) => {
     setActivePage(item.targetPage)
-    window.history.pushState(null, '', `#${item.targetPage}`)
+    window.history.pushState(null, '', item.targetPage === 'expenses' && item.targetSection ? `#${item.targetPage}:${item.targetSection}` : `#${item.targetPage}`)
 
     if (item.targetPage === 'expenses' && item.targetSection) {
       setExpenseSection(item.targetSection)
@@ -2460,7 +2503,7 @@ function App() {
 
   const openInboxTarget = (item: Pick<InboxItem, 'targetPage' | 'targetSection'>) => {
     setActivePage(item.targetPage)
-    window.history.pushState(null, '', `#${item.targetPage}`)
+    window.history.pushState(null, '', item.targetPage === 'expenses' && item.targetSection ? `#${item.targetPage}:${item.targetSection}` : `#${item.targetPage}`)
 
     if (item.targetPage === 'expenses' && item.targetSection) {
       setExpenseSection(item.targetSection)
@@ -2468,11 +2511,14 @@ function App() {
   }
 
   const openTargetUrl = (targetUrl: string) => {
-    const page = targetUrl.replace('#', '') as AppPage
+    const { page, section } = parseTargetHash(targetUrl)
 
     if (page) {
       setActivePage(page)
-      window.history.pushState(null, '', `#${page}`)
+      if (page === 'expenses' && section) {
+        setExpenseSection(section)
+      }
+      window.history.pushState(null, '', section ? `#${page}:${section}` : `#${page}`)
     }
   }
 
@@ -2529,6 +2575,56 @@ function App() {
       value: dashboard.summary.documentsStored,
       label: 'stored',
       detail: `${expiredDocuments.length} expired · ${expiringDocuments.length} expiring soon`,
+    },
+  ]
+
+  const setupChecklist = [
+    {
+      title: 'Add recurring income',
+      detail: 'Use monthly income so projected balance is meaningful.',
+      done: (expenseOverview?.incomeSources ?? []).some((source) => source.active),
+      action: 'Open income',
+      onClick: () => openExpensesSection('overview'),
+    },
+    {
+      title: 'Add first bill',
+      detail: 'Recurring bills make the month-end forecast useful.',
+      done: (expenseOverview?.recurringBills ?? []).length > 0,
+      action: 'Open bills',
+      onClick: () => openExpensesSection('bills'),
+    },
+    {
+      title: 'Add first reminder',
+      detail: 'Use reminders for small follow-ups that are easy to forget.',
+      done: reminders.length > 0,
+      action: 'Add reminder',
+      onClick: () => {
+        setActivePage('reminders')
+        setOpenReminderCreator(true)
+        window.location.hash = 'reminders'
+      },
+    },
+    {
+      title: 'Add first document',
+      detail: 'Store important metadata before files pile up.',
+      done: documents.length > 0,
+      action: 'Add document',
+      onClick: () => {
+        setActivePage('documents')
+        setOpenDocumentCreator(true)
+        window.location.hash = 'documents'
+      },
+    },
+    {
+      title: 'Add first home task',
+      detail: 'Track maintenance before something becomes overdue.',
+      done: homeTasks.length > 0,
+      action: 'Add task',
+      onClick: () => {
+        setActivePage('home')
+        setOpenHomeTaskCreator(true)
+        window.location.hash = 'home'
+      },
     },
   ]
 
@@ -2838,13 +2934,13 @@ function App() {
 
           {authMode === 'login' ? (
             <form className="setup-form auth-form" onSubmit={login}>
-              <label>
+              <label htmlFor="login-email">
                 Email
-                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                <input id="login-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
               </label>
-              <label>
+              <label htmlFor="login-password">
                 Password
-                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                <input id="login-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
               </label>
               <button type="submit" disabled={setupState === 'saving'}>
                 {setupState === 'saving' ? 'Logging in...' : 'Log in'}
@@ -2852,17 +2948,18 @@ function App() {
             </form>
           ) : (
             <form className="setup-form auth-form" onSubmit={register}>
-              <label>
+              <label htmlFor="register-display-name">
                 Display name
-                <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
+                <input id="register-display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
               </label>
-              <label>
+              <label htmlFor="register-email">
                 Email
-                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                <input id="register-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
               </label>
-              <label>
+              <label htmlFor="register-password">
                 Password
                 <input
+                  id="register-password"
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -2870,9 +2967,9 @@ function App() {
                   required
                 />
               </label>
-              <label>
+              <label htmlFor="register-household-name">
                 Household name
-                <input value={householdName} onChange={(event) => setHouseholdName(event.target.value)} required />
+                <input id="register-household-name" value={householdName} onChange={(event) => setHouseholdName(event.target.value)} required />
               </label>
               <button type="submit" disabled={setupState === 'saving'}>
                 {setupState === 'saving' ? 'Creating account...' : 'Create account'}
@@ -2953,34 +3050,34 @@ function App() {
                 </div>
 
                 <form className="setup-form dashboard-expense-form" onSubmit={addExpense}>
-                  <label>
+                  <label htmlFor="dashboard-expense-description">
                     What was it?
-                    <input value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} placeholder="Coffee, pharmacy, groceries..." required />
+                    <input id="dashboard-expense-description" value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} placeholder="Coffee, pharmacy, groceries..." required />
                   </label>
-                  <label>
+                  <label htmlFor="dashboard-expense-amount">
                     Amount
-                    <input type="number" min="0" step="0.01" inputMode="decimal" value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} placeholder="0.00" required />
+                    <input id="dashboard-expense-amount" type="number" min="0" step="0.01" inputMode="decimal" value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} placeholder="0.00" required />
                   </label>
-                  <label>
+                  <label htmlFor="dashboard-expense-category">
                     Category
-                    <select value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required>
+                    <select id="dashboard-expense-category" value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required>
                       {(expenseOverview?.categories ?? []).map((category) => (
                         <option value={category.id} key={category.id}>{category.name}</option>
                       ))}
                     </select>
                   </label>
-                  <label>
+                  <label htmlFor="dashboard-expense-paid-by">
                     Paid by
-                    <select value={expensePaidByMemberId} onChange={(event) => setExpensePaidByMemberId(event.target.value)}>
+                    <select id="dashboard-expense-paid-by" value={expensePaidByMemberId} onChange={(event) => setExpensePaidByMemberId(event.target.value)}>
                       <option value="">Household</option>
                       {(household?.members ?? []).map((member) => (
                         <option value={member.id} key={member.id}>{member.displayName}</option>
                       ))}
                     </select>
                   </label>
-                  <label>
+                  <label htmlFor="dashboard-expense-date">
                     Date
-                    <input type="date" value={expenseSpentOn} onChange={(event) => setExpenseSpentOn(event.target.value)} required />
+                    <input id="dashboard-expense-date" type="date" value={expenseSpentOn} onChange={(event) => setExpenseSpentOn(event.target.value)} required />
                   </label>
                   <button type="submit" disabled={setupState === 'saving' || !expenseOverview?.categories.length}>
                     {setupState === 'saving' ? 'Saving...' : 'Save expense'}
@@ -2989,6 +3086,7 @@ function App() {
               </article>
             )}
             dailyActionCards={dailyActionCards}
+            setupChecklist={setupChecklist}
             attention={dashboard.attention}
             attentionGroups={attentionGroups}
             attentionGroupLabels={attentionGroupLabels}
@@ -3467,18 +3565,19 @@ function App() {
             </div>
 
             <div className="health-review-groups">
-              {(Object.keys(healthReviewGroups) as Array<HealthReviewItem['severity']>).map((severity) => (
-                <section className={`health-review-group severity-${severity}`} key={severity}>
+              {healthReviewSections.map((section) => (
+                <section className="health-review-group" key={section.key}>
                   <div className="panel-heading-row">
                     <div>
-                      <p className="eyebrow">{severity}</p>
-                      <h3>{healthReviewGroups[severity].length} item{healthReviewGroups[severity].length === 1 ? '' : 's'}</h3>
+                      <p className="eyebrow">{section.eyebrow}</p>
+                      <h3>{section.title}</h3>
+                      <p className="panel-copy">{section.items.length} item{section.items.length === 1 ? '' : 's'}</p>
                     </div>
                   </div>
 
                   <div className="health-review-list">
-                    {healthReviewGroups[severity].length > 0 ? (
-                      healthReviewGroups[severity].map((item) => (
+                    {section.items.length > 0 ? (
+                      section.items.map((item) => (
                         <article className={`health-review-item severity-${item.severity}`} key={item.id}>
                           <span></span>
                           <div>
@@ -3493,7 +3592,7 @@ function App() {
                         </article>
                       ))
                     ) : (
-                      <p className="empty-state">No {severity} health review items.</p>
+                      <p className="empty-state">{section.empty}</p>
                     )}
                   </div>
                 </section>
@@ -3857,17 +3956,19 @@ function App() {
                   )}
                 </div>
                 <form className="finance-import-form" onSubmit={previewFinanceImport}>
-                  <label>
+                  <label htmlFor="finance-import-source">
                     Source
                     <input
+                      id="finance-import-source"
                       value={financeImportSource}
                       onChange={(event) => setFinanceImportSource(event.target.value)}
                       placeholder="bank-csv"
                     />
                   </label>
-                  <label>
+                  <label htmlFor="finance-import-file">
                     CSV file
                     <input
+                      id="finance-import-file"
                       type="file"
                       accept=".csv,text/csv,text/plain"
                       onChange={(event) => {
@@ -3929,11 +4030,17 @@ function App() {
                       {financeImportPreview.rows.slice(0, 8).map((row) => (
                         <article className={row.duplicate ? 'duplicate' : row.matchedRule ? 'matched-rule' : 'new'} key={`${row.rowNumber}-${row.description}`}>
                           <div>
-                            <strong>{row.description}</strong>
+                            <strong>{compactTransactionTitle(row.description)}</strong>
                             <small>
                               {row.transactionDate} · {row.direction} · {pln(row.amount)} · {row.fingerprintStrength === 'stable_transaction_id' ? 'bank id' : 'fingerprint'}
                               {row.matchedRule ? ` · rule: ${row.matchedRule.matchText}` : ''}
                             </small>
+                            {isLongTransactionText(row.description) && (
+                              <details className="raw-bank-text">
+                                <summary>Raw bank text</summary>
+                                <p>{row.description}</p>
+                              </details>
+                            )}
                           </div>
                           <span>
                             {row.duplicate ? 'Duplicate, skipped' : row.matchedRule ? 'Rule matched, reviewed' : 'New, needs review'}
@@ -4025,8 +4132,14 @@ function App() {
                         <article className="review-item" key={expense.id}>
                           <span style={{ background: expense.category.color }}></span>
                           <div>
-                            <strong>{expense.description}</strong>
+                            <strong>{compactTransactionTitle(expense.description)}</strong>
                             <small>{expense.spentOn} · {pln(expense.amount)} · {expense.reviewReason ?? 'Imported row'}</small>
+                            {isLongTransactionText(expense.description) && (
+                              <details className="raw-bank-text">
+                                <summary>Raw bank text</summary>
+                                <p>{expense.description}</p>
+                              </details>
+                            )}
                           </div>
                           <select value={expense.category.id} onChange={(event) => changeExpenseCategory(expense, event.target.value)}>
                             {(expenseOverview?.categories ?? []).map((category) => (
@@ -4052,8 +4165,14 @@ function App() {
                         <article className={`review-item income-kind-${entry.incomeKind}`} key={entry.id}>
                           <span></span>
                           <div>
-                            <strong>{entry.description}</strong>
+                            <strong>{compactTransactionTitle(entry.description)}</strong>
                             <small>{entry.receivedOn} · {pln(entry.amount)} · {entry.reviewReason ?? 'Imported row'}</small>
+                            {isLongTransactionText(entry.description) && (
+                              <details className="raw-bank-text">
+                                <summary>Raw bank text</summary>
+                                <p>{entry.description}</p>
+                              </details>
+                            )}
                           </div>
                           <select
                             value={entry.incomeKind}
