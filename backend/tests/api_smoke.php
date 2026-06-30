@@ -103,59 +103,71 @@ function apiRequest(string $method, string $path, ?array $payload = null): array
 {
     global $baseUrl, $cookieJar;
 
-    $headers = ['Accept: application/json'];
-    $body = null;
+    $attempts = strtoupper($method) === 'GET' ? 2 : 1;
+    $lastResponse = null;
 
-    if ($payload !== null) {
-        $body = json_encode($payload, JSON_THROW_ON_ERROR);
-        $headers[] = 'Content-Type: application/json';
-    }
+    for ($attempt = 1; $attempt <= $attempts; ++$attempt) {
+        $headers = ['Accept: application/json'];
+        $body = null;
 
-    if ($cookieJar !== []) {
-        $headers[] = 'Cookie: '.implode('; ', array_map(
-            static fn (string $name, string $value): string => sprintf('%s=%s', $name, $value),
-            array_keys($cookieJar),
-            $cookieJar,
-        ));
-    }
-
-    $context = stream_context_create([
-        'http' => [
-            'method' => $method,
-            'header' => implode("\r\n", $headers),
-            'content' => $body,
-            'ignore_errors' => true,
-            'timeout' => 10,
-        ],
-    ]);
-
-    $raw = @file_get_contents($baseUrl.$path, false, $context);
-
-    if ($raw === false) {
-        fail(sprintf('Could not connect to %s. Is the backend container running?', $baseUrl));
-    }
-
-    $responseHeaders = $http_response_header ?? [];
-    $status = 0;
-
-    foreach ($responseHeaders as $header) {
-        if (preg_match('/^HTTP\/\S+\s+(\d+)/', $header, $matches)) {
-            $status = (int) $matches[1];
+        if ($payload !== null) {
+            $body = json_encode($payload, JSON_THROW_ON_ERROR);
+            $headers[] = 'Content-Type: application/json';
         }
 
-        if (preg_match('/^Set-Cookie:\s*([^=;]+)=([^;]*)/i', $header, $matches)) {
-            $cookieJar[$matches[1]] = $matches[2];
+        if ($cookieJar !== []) {
+            $headers[] = 'Cookie: '.implode('; ', array_map(
+                static fn (string $name, string $value): string => sprintf('%s=%s', $name, $value),
+                array_keys($cookieJar),
+                $cookieJar,
+            ));
         }
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => $method,
+                'header' => implode("\r\n", $headers),
+                'content' => $body,
+                'ignore_errors' => true,
+                'timeout' => 10,
+            ],
+        ]);
+
+        $raw = @file_get_contents($baseUrl.$path, false, $context);
+
+        if ($raw === false) {
+            fail(sprintf('Could not connect to %s. Is the backend container running?', $baseUrl));
+        }
+
+        $responseHeaders = $http_response_header ?? [];
+        $status = 0;
+
+        foreach ($responseHeaders as $header) {
+            if (preg_match('/^HTTP\/\S+\s+(\d+)/', $header, $matches)) {
+                $status = (int) $matches[1];
+            }
+
+            if (preg_match('/^Set-Cookie:\s*([^=;]+)=([^;]*)/i', $header, $matches)) {
+                $cookieJar[$matches[1]] = $matches[2];
+            }
+        }
+
+        $decoded = json_decode($raw, true);
+        $lastResponse = [
+            'status' => $status,
+            'body' => json_last_error() === JSON_ERROR_NONE ? $decoded : null,
+            'raw' => $raw,
+            'headers' => $responseHeaders,
+        ];
+
+        if (!in_array($status, [502, 503], true) || $attempt === $attempts) {
+            return $lastResponse;
+        }
+
+        usleep(250_000);
     }
 
-    $decoded = json_decode($raw, true);
-
-    return [
-        'status' => $status,
-        'body' => json_last_error() === JSON_ERROR_NONE ? $decoded : null,
-        'raw' => $raw,
-        'headers' => $responseHeaders,
-    ];
+    return $lastResponse ?? ['status' => 0, 'body' => null, 'raw' => '', 'headers' => []];
 }
 
 /**

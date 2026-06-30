@@ -27,6 +27,7 @@ test-backend-smoke:
 check:
 	docker compose exec -T backend php bin/console lint:container
 	docker compose exec -T backend php bin/console doctrine:schema:validate
+	docker compose exec -T backend php tests/demo_seed_smoke.php
 	docker compose exec -T backend php tests/api_smoke.php
 	docker compose exec -T frontend npm run build
 	docker compose exec -T frontend npm run smoke

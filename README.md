@@ -49,6 +49,7 @@ This machine currently has Docker available, but PHP, Composer, Symfony CLI, npm
 
 - [Agent context](AGENTS.md)
 - [Development roadmap](docs/development-roadmap.md)
+- [Demo data](docs/demo-data.md)
 - [Product vision](docs/product-vision.md)
 - [Product decisions](docs/product-decisions.md)
 - [Architecture](docs/architecture.md)
