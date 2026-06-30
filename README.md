@@ -52,6 +52,7 @@ This machine currently has Docker available, but PHP, Composer, Symfony CLI, npm
 - [Product vision](docs/product-vision.md)
 - [Product decisions](docs/product-decisions.md)
 - [Architecture](docs/architecture.md)
+- [Notifications](docs/notifications.md)
 - [Initial domain model](docs/domain-model.md)
 - [MVP roadmap](docs/mvp-roadmap.md)
 

@@ -37,6 +37,12 @@ class UserAccount implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?DateTimeImmutable $lastLoginAt = null;
 
+    #[ORM\Column(type: 'boolean')]
+    private bool $notificationDigestEnabled = true;
+
+    #[ORM\Column(type: 'smallint', nullable: true)]
+    private ?int $notificationDigestHour = null;
+
     public function __construct(string $id, string $email, string $passwordHash, string $displayName, string $householdId, ?string $linkedMemberId)
     {
         $this->id = $id;
@@ -76,6 +82,16 @@ class UserAccount implements UserInterface, PasswordAuthenticatedUserInterface
     public function createdAt(): DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function notificationDigestEnabled(): bool
+    {
+        return $this->notificationDigestEnabled;
+    }
+
+    public function notificationDigestHour(): ?int
+    {
+        return $this->notificationDigestHour;
     }
 
     public function getUserIdentifier(): string

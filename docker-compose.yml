@@ -9,6 +9,8 @@ services:
     environment:
       APP_ENV: dev
       DATABASE_URL: postgresql://home_os:home_os_dev_password@database:5432/home_os?serverVersion=16&charset=utf8
+      MAILER_DSN: smtp://mailpit:1025
+      NOTIFICATION_SENDER_EMAIL: home-os@example.test
     ports:
       - "8080:8000"
     depends_on:

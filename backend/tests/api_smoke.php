@@ -10,8 +10,9 @@ $cookieJar = [];
 $checks = 0;
 $createdHouseholdId = null;
 $createdEmail = $email;
+$createdExtraEmails = [];
 
-register_shutdown_function(static function () use (&$createdHouseholdId, &$createdEmail): void {
+register_shutdown_function(static function () use (&$createdHouseholdId, &$createdEmail, &$createdExtraEmails): void {
     if (!is_string($createdHouseholdId) || $createdHouseholdId === '') {
         return;
     }
@@ -59,6 +60,11 @@ register_shutdown_function(static function () use (&$createdHouseholdId, &$creat
 
         $statement = $pdo->prepare('DELETE FROM user_accounts WHERE email = :email');
         $statement->execute(['email' => $createdEmail]);
+
+        foreach ($createdExtraEmails as $extraEmail) {
+            $statement = $pdo->prepare('DELETE FROM user_accounts WHERE email = :email');
+            $statement->execute(['email' => $extraEmail]);
+        }
 
         $statement = $pdo->prepare('DELETE FROM households WHERE id = :householdId');
         $statement->execute(['householdId' => $createdHouseholdId]);
@@ -251,6 +257,26 @@ function hasHeader(array $headers, string $name, ?string $contains = null): bool
     }
 
     return false;
+}
+
+function smokeDatabase(): PDO
+{
+    $databaseUrl = (string) ($_SERVER['DATABASE_URL'] ?? '');
+    $parts = parse_url($databaseUrl);
+
+    if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'postgresql') {
+        fail('DATABASE_URL must be PostgreSQL for smoke database checks.');
+    }
+
+    $host = (string) ($parts['host'] ?? 'database');
+    $port = (int) ($parts['port'] ?? 5432);
+    $database = ltrim((string) ($parts['path'] ?? ''), '/');
+    $user = rawurldecode((string) ($parts['user'] ?? ''));
+    $password = rawurldecode((string) ($parts['pass'] ?? ''));
+
+    return new PDO(sprintf('pgsql:host=%s;port=%d;dbname=%s', $host, $port, $database), $user, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    ]);
 }
 
 $register = apiRequest('POST', '/api/auth/register', [
@@ -1034,6 +1060,18 @@ $healthReviewAttention = array_values(array_filter(
 
 assertTrue(count($healthReviewAttention) === 1, 'Dashboard should link to Health Review Center.');
 
+$externalEmail = sprintf('outside-%s@example.test', $runId);
+$createdExtraEmails[] = $externalEmail;
+$pdo = smokeDatabase();
+$pdo->prepare('INSERT INTO user_accounts (id, email, password_hash, display_name, household_id, linked_member_id, created_at, last_login_at, notification_digest_enabled, notification_digest_hour) VALUES (:id, :email, :passwordHash, :displayName, :householdId, NULL, NOW(), NULL, true, NULL)')
+    ->execute([
+        'id' => sprintf('%s-%s-%s-%s-%s', bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(6))),
+        'email' => $externalEmail,
+        'passwordHash' => 'not-used-in-smoke-test',
+        'displayName' => 'Outside Household',
+        'householdId' => sprintf('%s-%s-%s-%s-%s', bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(6))),
+    ]);
+
 $digestCommand = sprintf('php bin/console homeos:send-daily-digest --household=%s --dry-run 2>&1', escapeshellarg($householdId));
 $digestOutput = [];
 $digestExitCode = 0;
@@ -1041,13 +1079,34 @@ exec($digestCommand, $digestOutput, $digestExitCode);
 $digestText = implode("\n", $digestOutput);
 
 assertTrue($digestExitCode === 0, 'Daily digest command should run without sending external email.');
+assertTrue(str_contains($digestText, 'Dry run: no email was sent.'), 'Daily digest dry-run should not send email.');
+assertTrue(str_contains($digestText, $email), 'Daily digest should include the household user recipient.');
+assertTrue(!str_contains($digestText, $externalEmail), 'Daily digest should not include users from another household.');
 assertTrue(str_contains($digestText, 'Smoke overdue reminder for dashboard'), 'Daily digest should include overdue reminders.');
 assertTrue(str_contains($digestText, 'Smoke today reminder for dashboard'), 'Daily digest should include reminders due today.');
 assertTrue(str_contains($digestText, 'Smoke water meter reading'), 'Daily digest should include overdue home maintenance tasks.');
 assertTrue(str_contains($digestText, 'Smoke expiring warranty'), 'Daily digest should include expiring documents.');
 assertTrue(str_contains($digestText, $firstImportDescription), 'Daily digest should include imported finance rows needing review.');
 assertTrue(str_contains($digestText, 'Smoke LDL'), 'Daily digest should include high-severity health review items.');
-assertTrue(str_contains($digestText, 'Email delivery is not configured'), 'Daily digest MVP should render locally without real email delivery.');
+
+$pdo->prepare('UPDATE user_accounts SET notification_digest_enabled = false WHERE email = :email')->execute(['email' => $email]);
+$disabledDigestOutput = [];
+$disabledDigestExitCode = 0;
+exec($digestCommand, $disabledDigestOutput, $disabledDigestExitCode);
+$disabledDigestText = implode("\n", $disabledDigestOutput);
+
+assertTrue($disabledDigestExitCode === 0, 'Daily digest command should run when digest is disabled.');
+assertTrue(str_contains($disabledDigestText, 'No enabled digest recipients'), 'Daily digest should skip disabled recipients.');
+
+$pdo->prepare('UPDATE user_accounts SET notification_digest_enabled = true WHERE email = :email')->execute(['email' => $email]);
+$sendDigestCommand = sprintf('php bin/console homeos:send-daily-digest --household=%s 2>&1', escapeshellarg($householdId));
+$sendDigestOutput = [];
+$sendDigestExitCode = 0;
+exec($sendDigestCommand, $sendDigestOutput, $sendDigestExitCode);
+$sendDigestText = implode("\n", $sendDigestOutput);
+
+assertTrue($sendDigestExitCode === 0, 'Daily digest send mode should run with configured mailer.');
+assertTrue(str_contains($sendDigestText, 'Sent daily digest to 1 recipient'), 'Daily digest send mode should send to enabled household recipient.');
 
 $health = apiRequest('GET', sprintf('/api/households/%s/health/overview', rawurlencode($householdId)));
 
