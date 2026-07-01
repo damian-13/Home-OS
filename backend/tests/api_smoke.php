@@ -296,11 +296,13 @@ $register = apiRequest('POST', '/api/auth/register', [
     'password' => $password,
     'displayName' => 'Smoke Test',
     'householdName' => 'Smoke Test Household',
+    'language' => 'pl',
 ]);
 
 assertTrue($register['status'] === 201, 'Register should create a user account.');
 assertTrue(is_array($register['body']), 'Register should return JSON.');
 assertTrue(is_string($register['body']['householdId'] ?? null), 'Register should return a household id.');
+assertTrue(($register['body']['language'] ?? null) === 'pl', 'Register should store the requested language.');
 
 $createdHouseholdId = (string) $register['body']['householdId'];
 
@@ -320,6 +322,20 @@ $user = $me['body']['user'];
 $householdId = (string) $user['householdId'];
 
 assertTrue($householdId === $register['body']['householdId'], 'Current user household should match registered household.');
+assertTrue(($user['language'] ?? null) === 'pl', 'Me endpoint should return the user language.');
+
+$languageUpdate = apiRequest('PATCH', '/api/auth/me/preferences', [
+    'language' => 'en',
+]);
+
+assertTrue($languageUpdate['status'] === 200, 'Language preference update should return 200.');
+assertTrue(($languageUpdate['body']['user']['language'] ?? null) === 'en', 'Language preference update should persist English.');
+
+$invalidLanguageUpdate = apiRequest('PATCH', '/api/auth/me/preferences', [
+    'language' => 'de',
+]);
+
+assertTrue($invalidLanguageUpdate['status'] === 400, 'Language preference should reject unsupported languages.');
 
 $dashboard = apiRequest('GET', '/api/dashboard');
 
@@ -1075,13 +1091,14 @@ assertTrue(count($healthReviewAttention) === 1, 'Dashboard should link to Health
 $externalEmail = sprintf('outside-%s@example.test', $runId);
 $createdExtraEmails[] = $externalEmail;
 $pdo = smokeDatabase();
-$pdo->prepare('INSERT INTO user_accounts (id, email, password_hash, display_name, household_id, linked_member_id, created_at, last_login_at, notification_digest_enabled, notification_digest_hour) VALUES (:id, :email, :passwordHash, :displayName, :householdId, NULL, NOW(), NULL, true, NULL)')
+$pdo->prepare('INSERT INTO user_accounts (id, email, password_hash, display_name, household_id, linked_member_id, created_at, last_login_at, notification_digest_enabled, notification_digest_hour, language) VALUES (:id, :email, :passwordHash, :displayName, :householdId, NULL, NOW(), NULL, true, NULL, :language)')
     ->execute([
         'id' => sprintf('%s-%s-%s-%s-%s', bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(6))),
         'email' => $externalEmail,
         'passwordHash' => 'not-used-in-smoke-test',
         'displayName' => 'Outside Household',
         'householdId' => sprintf('%s-%s-%s-%s-%s', bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(2)), bin2hex(random_bytes(6))),
+        'language' => 'en',
     ]);
 
 $digestCommand = sprintf('php bin/console homeos:send-daily-digest --household=%s --dry-run 2>&1', escapeshellarg($householdId));

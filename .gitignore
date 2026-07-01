@@ -18,4 +18,5 @@
 /.vscode/
 
 # Docker / local data
+/docker-compose.override.yml
 /data/

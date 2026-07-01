@@ -29,6 +29,7 @@ final readonly class RegisterController
         $password = (string) ($payload['password'] ?? '');
         $displayName = trim((string) ($payload['displayName'] ?? ''));
         $householdName = trim((string) ($payload['householdName'] ?? 'Home OS Household'));
+        $language = (string) ($payload['language'] ?? 'en');
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new BadRequestHttpException('Valid email is required.');
@@ -40,6 +41,10 @@ final readonly class RegisterController
 
         if ('' === $displayName) {
             throw new BadRequestHttpException('Display name is required.');
+        }
+
+        if (!in_array($language, ['en', 'pl'], true)) {
+            throw new BadRequestHttpException('Language must be en or pl.');
         }
 
         if ($this->entityManager->getRepository(UserAccount::class)->findOneBy(['email' => $email])) {
@@ -66,6 +71,7 @@ final readonly class RegisterController
             $household->id(),
             $member->id(),
         );
+        $user->changeLanguage($language);
 
         $this->entityManager->persist($household);
         $this->entityManager->persist($user);
@@ -76,6 +82,7 @@ final readonly class RegisterController
             'email' => $user->email(),
             'householdId' => $user->householdId(),
             'linkedMemberId' => $user->linkedMemberId(),
+            'language' => $user->language(),
         ], JsonResponse::HTTP_CREATED);
     }
 

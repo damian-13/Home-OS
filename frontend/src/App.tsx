@@ -6,6 +6,7 @@ import { MobileNavigation } from './features/mobile-navigation/MobileNavigation'
 import { QuickActionMenu } from './features/quick-actions/QuickActionMenu'
 import { SearchPage } from './features/search/SearchPage'
 import { TimelinePage } from './features/timeline/TimelinePage'
+import { type Language, useDomTranslations } from './i18n'
 import type { AppPage } from './shared/navigation'
 
 type Dashboard = {
@@ -60,6 +61,7 @@ type CurrentUser = {
   displayName: string
   householdId: string
   linkedMemberId: string | null
+  language: Language
 }
 
 type ExpenseCategory = {
@@ -488,6 +490,7 @@ const fallbackDashboard: Dashboard = {
 }
 
 const householdStorageKey = 'home-os.household-id'
+const languageStorageKey = 'home-os.language'
 
 const today = new Date().toISOString().slice(0, 10)
 const currentMonth = today.slice(0, 7)
@@ -627,6 +630,11 @@ function App() {
   const [apiState, setApiState] = useState<'checking' | 'online' | 'offline'>('checking')
   const [sessionState, setSessionState] = useState<'checking' | 'ready'>('checking')
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [uiLanguage, setUiLanguage] = useState<Language>(() => {
+    const storedLanguage = window.localStorage.getItem(languageStorageKey)
+
+    return storedLanguage === 'en' || storedLanguage === 'pl' ? storedLanguage : 'pl'
+  })
   const [household, setHousehold] = useState<Household | null>(null)
   const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null)
   const [healthOverview, setHealthOverview] = useState<HealthOverview | null>(null)
@@ -767,6 +775,7 @@ function App() {
   const defaultMemberId = currentUser?.linkedMemberId ?? household?.members[0]?.id ?? ''
   const effectiveBloodTestMemberId = bloodTestMemberId || defaultMemberId
   const effectiveDocumentMemberId = documentMemberId || defaultMemberId
+  useDomTranslations(uiLanguage)
 
   useEffect(() => {
     const readPageFromHash = () => {
@@ -801,6 +810,8 @@ function App() {
           return
         }
 
+        setUiLanguage(user.language)
+        window.localStorage.setItem(languageStorageKey, user.language)
         window.localStorage.setItem(householdStorageKey, user.householdId)
         return Promise.all([
           apiJson<Household>(`/api/households/${user.householdId}`).then(setHousehold),
@@ -846,7 +857,7 @@ function App() {
     try {
       await apiJson<{ id: string }>('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ email, password, displayName, householdName }),
+        body: JSON.stringify({ email, password, displayName, householdName, language: uiLanguage }),
       })
       await login()
     } catch {
@@ -875,6 +886,8 @@ function App() {
       await loadHealthOverview(user.householdId)
       await loadHealthReview(user.householdId)
       await loadHealthDocuments(user.householdId)
+      setUiLanguage(user.language)
+      window.localStorage.setItem(languageStorageKey, user.language)
       window.localStorage.setItem(householdStorageKey, user.householdId)
       setCurrentUser(user)
       setHousehold(nextHousehold)
@@ -906,6 +919,27 @@ function App() {
     setMarkerHistory([])
     setDashboard(fallbackDashboard)
     window.localStorage.removeItem(householdStorageKey)
+  }
+
+  const changeLanguage = async (language: Language) => {
+    setUiLanguage(language)
+    window.localStorage.setItem(languageStorageKey, language)
+
+    if (!currentUser) {
+      return
+    }
+
+    try {
+      const { user } = await apiJson<{ user: CurrentUser }>('/api/auth/me/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify({ language }),
+      })
+      setCurrentUser(user)
+      setUiLanguage(user.language)
+      window.localStorage.setItem(languageStorageKey, user.language)
+    } catch {
+      setSetupState('error')
+    }
   }
 
   async function loadExpenseOverview(householdId: string) {
@@ -2923,6 +2957,14 @@ function App() {
             <h2>{authMode === 'login' ? 'Log in to Home OS' : 'Create your Home OS account'}</h2>
           </div>
 
+          <label className="language-select" htmlFor="auth-language">
+            Language
+            <select id="auth-language" value={uiLanguage} onChange={(event) => changeLanguage(event.target.value as Language)}>
+              <option value="en">English</option>
+              <option value="pl">Polski</option>
+            </select>
+          </label>
+
           <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
             <button className={authMode === 'login' ? 'active' : ''} type="button" onClick={() => setAuthMode('login')}>
               Log in
@@ -3023,6 +3065,13 @@ function App() {
             <p>{pageTitles[activePage].copy}</p>
           </div>
           <div className="page-actions">
+            <label className="language-select compact" htmlFor="app-language">
+              Language
+              <select id="app-language" value={uiLanguage} onChange={(event) => changeLanguage(event.target.value as Language)}>
+                <option value="en">English</option>
+                <option value="pl">Polski</option>
+              </select>
+            </label>
             <div className={`api-pill ${apiState}`}>
               <span></span>
               API {apiState}

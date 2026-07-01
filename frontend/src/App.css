@@ -104,6 +104,41 @@
   box-shadow: 0 8px 22px rgba(22, 45, 91, 0.12);
 }
 
+.language-select {
+  display: grid;
+  gap: 6px;
+  color: #506079;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.language-select select {
+  min-height: 40px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-weight: 850;
+  padding: 0 34px 0 12px;
+}
+
+.language-select.compact {
+  min-width: 132px;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.language-select.compact select {
+  min-height: 38px;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.language-select.compact option {
+  color: #172033;
+}
+
 .auth-form {
   gap: 14px;
 }

@@ -59,6 +59,16 @@ const checks = [
     contains: ['Important household timeline', 'Routine low-value transactions are grouped'],
     label: 'Timeline page',
   },
+  {
+    file: 'src/i18n/pl.ts',
+    contains: ['Pulpit', 'Skrzynka', 'Wydatki', 'Przypomnienia', 'Dokumenty', 'Przeglad zdrowia', 'Szukaj wszedzie'],
+    label: 'Polish translations',
+  },
+  {
+    file: 'src/App.tsx',
+    contains: ['home-os.language', '/api/auth/me/preferences', 'id="app-language"', 'id="auth-language"'],
+    label: 'Language preference UI',
+  },
 ]
 
 const failures = []

@@ -12,6 +12,7 @@ final readonly class CurrentUserView
         public string $displayName,
         public string $householdId,
         public ?string $linkedMemberId,
+        public string $language,
     ) {
     }
 
@@ -23,6 +24,7 @@ final readonly class CurrentUserView
             $user->displayName(),
             $user->householdId(),
             $user->linkedMemberId(),
+            $user->language(),
         );
     }
 }

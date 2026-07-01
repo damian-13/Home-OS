@@ -43,6 +43,9 @@ class UserAccount implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'smallint', nullable: true)]
     private ?int $notificationDigestHour = null;
 
+    #[ORM\Column(type: 'string', length: 2)]
+    private string $language = 'en';
+
     public function __construct(string $id, string $email, string $passwordHash, string $displayName, string $householdId, ?string $linkedMemberId)
     {
         $this->id = $id;
@@ -92,6 +95,20 @@ class UserAccount implements UserInterface, PasswordAuthenticatedUserInterface
     public function notificationDigestHour(): ?int
     {
         return $this->notificationDigestHour;
+    }
+
+    public function language(): string
+    {
+        return $this->language;
+    }
+
+    public function changeLanguage(string $language): void
+    {
+        if (!in_array($language, ['en', 'pl'], true)) {
+            throw new \InvalidArgumentException('Unsupported language.');
+        }
+
+        $this->language = $language;
     }
 
     public function getUserIdentifier(): string
