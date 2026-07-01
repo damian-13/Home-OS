@@ -146,7 +146,14 @@
 }
 
 .language-toggle.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: rgba(255, 255, 255, 0.76);
+}
+
+.language-toggle.compact > span {
+  white-space: nowrap;
 }
 
 .language-toggle.compact > div {
@@ -290,7 +297,7 @@
 
 .page-hero {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
   padding: 28px;
@@ -321,13 +328,15 @@
 .page-actions {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 10px;
+  margin-left: auto;
 }
 
 .page-utility-group {
-  display: grid;
-  gap: 8px;
-  justify-items: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .topbar {
