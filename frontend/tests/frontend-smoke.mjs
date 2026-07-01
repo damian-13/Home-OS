@@ -66,7 +66,7 @@ const checks = [
   },
   {
     file: 'src/App.tsx',
-    contains: ['home-os.language', '/api/auth/me/preferences', 'id="app-language"', 'id="auth-language"'],
+    contains: ['home-os.language', '/api/auth/me/preferences', 'language-toggle', 'aria-pressed={uiLanguage === \'pl\'}'],
     label: 'Language preference UI',
   },
 ]

@@ -2903,7 +2903,7 @@ function App() {
 
   if (sessionState === 'checking') {
     return (
-      <main className="auth-page">
+      <main className="auth-page" key={`auth-${uiLanguage}`}>
         <section className="auth-loading" aria-label="Loading Home OS">
           <span className="brand-mark">H</span>
           <strong>Opening Home OS</strong>
@@ -2914,7 +2914,7 @@ function App() {
 
   if (!currentUser) {
     return (
-      <main className="auth-page">
+      <main className="auth-page" key={`auth-ready-${uiLanguage}`}>
         <section className="auth-hero">
           <div className="brand auth-brand">
             <span className="brand-mark">H</span>
@@ -2957,13 +2957,17 @@ function App() {
             <h2>{authMode === 'login' ? 'Log in to Home OS' : 'Create your Home OS account'}</h2>
           </div>
 
-          <label className="language-select" htmlFor="auth-language">
-            Language
-            <select id="auth-language" value={uiLanguage} onChange={(event) => changeLanguage(event.target.value as Language)}>
-              <option value="en">English</option>
-              <option value="pl">Polski</option>
-            </select>
-          </label>
+          <div className="language-toggle" aria-label="Language">
+            <span>Language</span>
+            <div role="group" aria-label="Language">
+              <button className={uiLanguage === 'pl' ? 'active' : ''} type="button" onClick={() => changeLanguage('pl')} aria-pressed={uiLanguage === 'pl'}>
+                Polski
+              </button>
+              <button className={uiLanguage === 'en' ? 'active' : ''} type="button" onClick={() => changeLanguage('en')} aria-pressed={uiLanguage === 'en'}>
+                English
+              </button>
+            </div>
+          </div>
 
           <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
             <button className={authMode === 'login' ? 'active' : ''} type="button" onClick={() => setAuthMode('login')}>
@@ -3030,7 +3034,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" key={`app-${uiLanguage}`}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">H</span>
@@ -3065,16 +3069,22 @@ function App() {
             <p>{pageTitles[activePage].copy}</p>
           </div>
           <div className="page-actions">
-            <label className="language-select compact" htmlFor="app-language">
-              Language
-              <select id="app-language" value={uiLanguage} onChange={(event) => changeLanguage(event.target.value as Language)}>
-                <option value="en">English</option>
-                <option value="pl">Polski</option>
-              </select>
-            </label>
-            <div className={`api-pill ${apiState}`}>
-              <span></span>
-              API {apiState}
+            <div className="page-utility-group">
+              <div className="language-toggle compact" aria-label="Language">
+                <span>Language</span>
+                <div role="group" aria-label="Language">
+                  <button className={uiLanguage === 'pl' ? 'active' : ''} type="button" onClick={() => changeLanguage('pl')} aria-pressed={uiLanguage === 'pl'}>
+                    PL
+                  </button>
+                  <button className={uiLanguage === 'en' ? 'active' : ''} type="button" onClick={() => changeLanguage('en')} aria-pressed={uiLanguage === 'en'}>
+                    EN
+                  </button>
+                </div>
+              </div>
+              <div className={`api-pill ${apiState}`}>
+                <span></span>
+                API {apiState}
+              </div>
             </div>
             {household && (
               <a className="export-button" href={`/api/households/${household.id}/export`} download>

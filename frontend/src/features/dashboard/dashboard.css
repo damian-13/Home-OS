@@ -76,6 +76,23 @@
   color: #66748b;
 }
 
+.setup-checklist article button {
+  min-height: 38px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #2142d8;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 0 14px;
+  box-shadow: 0 8px 20px rgba(22, 45, 91, 0.08);
+}
+
+.setup-checklist article button:hover {
+  border-color: #b8c9ea;
+  background: #eef4ff;
+}
+
 .review-section,
 .recent-section {
   grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);

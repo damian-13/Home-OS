@@ -104,39 +104,65 @@
   box-shadow: 0 8px 22px rgba(22, 45, 91, 0.12);
 }
 
-.language-select {
+.language-toggle {
   display: grid;
-  gap: 6px;
+  gap: 7px;
   color: #506079;
   font-size: 13px;
   font-weight: 850;
 }
 
-.language-select select {
-  min-height: 40px;
-  border: 1px solid #d8e0ee;
-  border-radius: 8px;
-  background: #fff;
-  color: #172033;
-  font: inherit;
-  font-weight: 850;
-  padding: 0 34px 0 12px;
+.language-toggle > span {
+  line-height: 1;
 }
 
-.language-select.compact {
-  min-width: 132px;
+.language-toggle > div {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  min-height: 42px;
+  padding: 4px;
+  border: 1px solid #d8e0ee;
+  border-radius: 999px;
+  background: #eef4ff;
+}
+
+.language-toggle button {
+  min-width: 86px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #526178;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 0 14px;
+}
+
+.language-toggle button.active {
+  background: #fff;
+  color: #2142d8;
+  box-shadow: 0 8px 22px rgba(22, 45, 91, 0.12);
+}
+
+.language-toggle.compact {
   color: rgba(255, 255, 255, 0.76);
 }
 
-.language-select.compact select {
+.language-toggle.compact > div {
   min-height: 38px;
   border-color: rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.12);
-  color: #fff;
 }
 
-.language-select.compact option {
-  color: #172033;
+.language-toggle.compact button {
+  min-width: 48px;
+  color: rgba(255, 255, 255, 0.82);
+  padding: 0 11px;
+}
+
+.language-toggle.compact button.active {
+  color: #163177;
 }
 
 .auth-form {
@@ -296,6 +322,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.page-utility-group {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
 }
 
 .topbar {
