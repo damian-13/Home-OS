@@ -259,11 +259,14 @@ final readonly class GetHealthReviewHandler implements QueryHandler
         $unique = [];
 
         foreach ($items as $item) {
-            if (isset($seen[$item->id])) {
+            $contentKey = implode('|', [$item->type, $item->title, $item->detail, $item->memberId ?? '']);
+
+            if (isset($seen[$item->id]) || isset($seen[$contentKey])) {
                 continue;
             }
 
             $seen[$item->id] = true;
+            $seen[$contentKey] = true;
             $unique[] = $item;
         }
 
